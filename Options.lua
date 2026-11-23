@@ -372,10 +372,14 @@ local function buildBrandPage(pg)
   makeDelay(pg, "brand", 3, "The warning only comes up when your pet has attacked an enemy without the brand for this long.")
   local cb = makeCheck(pg, "Count the pet's attacks (experimental)", "The brand also ends when your pet has used its 6 empowered attacks, not only after 10 sec. The game doesn't say which attack used a charge, so this is a guess (a fire/shadow hit and a debuff change on that enemy at the same moment) and can be off, e.g. with your own DoTs on it.",
     function() return ns.db.brand.charges end, function(v) ns.db.brand.charges = v end)
-  cb:SetPoint("TOPLEFT", 26, -290)
+  cb:SetPoint("TOPLEFT", 26, -314)
+  -- 0.2.0: Blizzard's aura engine checks the pet's target where the addon can't (raids, dungeons)
+  makeCheck(pg, "Raids and dungeons: let the game check", "There the game hides which enemy your pet attacks. Ticked: the game itself looks for your brand on your pet's target and shows the warning only while it is missing there (exact, also after target switches). The sound still comes from the addon's 10 sec rule: when no brand of yours landed in the last 10 sec. Unticked: the 10 sec rule alone decides.",
+    function() return ns.db.brand.engine ~= false end, function(v) ns.db.brand.engine = v if ns.Pet then ns.Pet.update() end end)
+    :SetPoint("TOPLEFT", 26, -290)
   O.talentLine = smallText(pg)
   O.talentLine:SetPoint("TOPLEFT", 54, -98)
-  makePreview(pg, "brand", -336)
+  makePreview(pg, "brand", -344)
 end
 
 -- 0.1.2: low pet health with its threshold slider
@@ -485,8 +489,9 @@ function O.refreshStatus()
     O.status:SetText(table.concat(lines, "\n"))
   end
   if O.talentLine and P then
-    O.talentLine:SetText(P.brand.talent() and ("|cff55ff55" .. L["Talent learned."] .. "|r")
-      or ("|cffff5555" .. L["Talent not learned: this warning stays off."] .. "|r"))
+    O.talentLine:SetText((P.brand.talent() and ("|cff55ff55" .. L["Talent learned."] .. "|r")
+      or ("|cffff5555" .. L["Talent not learned: this warning stays off."] .. "|r")) .. "  |cff888888" ..
+      (ns.Alert.engineReady() and L["Game check available."] or L["Game check not available: 10 sec rule."]) .. "|r")
   end
   if O.hpLine and P then
     local txt = P.hpText()

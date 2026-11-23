@@ -290,6 +290,8 @@ function B.onCombat(unit, action, _, _, school)
 end
 
 function B.onAura(unit, info)
+  -- 0.2.0: an aura changed somewhere while the brand line is up: let the engine look at the pet's target again
+  if ns.Alert.active.brand and unit ~= "player" and unit ~= "pet" then ns.Alert.engineRefresh() end
   if not (next(B.list) or next(B.pending)) or type(info) ~= "table" or ns.issecret(info) then return end
   if unit == "player" or unit == "pet" then return end
   local added, updated = info.addedAuras, info.updatedAuraInstanceIDs
@@ -408,12 +410,22 @@ function P.petAttacking(t)
   return petHasEnemy() and (P.attackState(t)) == true
 end
 
+-- 0.2.0: where the pet's target is hidden (raids, dungeons) and Blizzard's aura engine is there, the
+-- engine decides whether the line shows (exactly: is our brand on the pet's target?). The addon then
+-- only knows the 10 s time rule: no brand of ours in the last 10 s = surely unbranded -> with sound;
+-- a brand in the last 10 s (maybe on another enemy) -> the line is up but quiet, the engine shows it
+-- only if the pet's target really has no brand. Open world: the per-enemy check alone, as before.
+function B.useEngine()
+  return ns.db.brand.engine ~= false and ns.Alert.engineReady() and not ns.guidOf("pettarget")
+end
+
 function P.checkBrand(t)
   local c = ns.db.brand
   local want = c.on and ns.inCombat and B.talent() and P.petAttacking(t)
+  local branded, casting = false, false
   if want then
-    local branded, casting = B.petTargetState(t)
-    want = not branded and not casting
+    branded, casting = B.petTargetState(t)
+    want = not casting and (B.useEngine() or not branded)
   end
   if want then
     B.since = B.since or t
@@ -422,7 +434,13 @@ function P.checkBrand(t)
     B.since = nil
   end
   if want and not ns.Alert.active.brand then B.explain(t) end
-  ns.Alert.set("brand", want and true or false)
+  -- the game sends no aura events for "pettarget": while the line is up, the engine looks again twice a second
+  if want and B.useEngine() and (not B.lastRefresh or t - B.lastRefresh >= 0.4) then
+    B.lastRefresh = t
+    ns.Alert.engineRefresh()
+  end
+  local quiet = want and B.useEngine() and branded
+  ns.Alert.set("brand", want and true or false, quiet or nil)
 end
 
 -- 0.1.3: why the brand warning comes up: the pet's target against every running brand
@@ -435,6 +453,7 @@ function B.explain(t)
       b.expires - t, #r > 0 and table.concat(r, ",") or "no tokens")
   end
   if #B.list == 0 then parts[#parts + 1] = "no running brand" end
+  parts[#parts + 1] = "engine " .. (B.useEngine() and "decides" or (ns.Alert.engineReady() and "ready, not used" or "none")) .. ", width " .. ns.Alert.engineWidth()
   ns.dbg("BRAND why " .. table.concat(parts, " | "))
 end
 
@@ -527,6 +546,7 @@ function P.start()
     if unit == "pet" then
       B.retoken("pettarget")
       B.since = nil -- the delay starts again for the new target
+      ns.Alert.engineRefresh() -- 0.2.0: the engine reads the new pet target
       P.update()
     end
   end)

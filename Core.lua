@@ -9,7 +9,7 @@
 local ADDON_NAME, ns = ...
 local L = ns.L
 
-ns.VERSION = "0.1.4"
+ns.VERSION = "0.2.0"
 ns.TITLE = "Warlock Pet & Proc"
 ns.SAME_FRAME = 0.02 -- seconds: events in the same frame (DotWatch, DotProbe 0.7)
 
@@ -75,7 +75,7 @@ ns.DEFAULTS = {
   idle = { on = true, size = 30, color = { 1, 0.22, 0.22 }, icon = true, pulse = true, delay = 1.5,
     sound = true, soundKey = "horn", repeatSec = 0 },
   brand = { on = true, size = 26, color = { 1, 0.55, 0.12 }, icon = true, pulse = true,
-    sound = true, soundKey = "emote", repeatSec = 0, delay = 1, charges = false },
+    sound = true, soundKey = "emote", repeatSec = 0, delay = 1, charges = false, engine = true },
   hp = { on = true, size = 28, color = { 1, 0.3, 0.55 }, icon = true, pulse = true, threshold = 30,
     ooc = false, sound = true, soundKey = "clock2", repeatSec = 0 },
 }
@@ -196,6 +196,7 @@ local function help()
   print("  /wpm debug  - " .. L["debug lines in chat on/off"])
   print("  /wpm lang <auto|en|de>  - " .. L["interface language (then /reload)"])
   print("  /wpm reset  - " .. L["all settings back to default"])
+  print("  /wpm brandid <id|default>  - " .. L["which brand debuff the game looks for (testing)"])
 end
 
 SLASH_WARLOCKPETPROC1 = "/wpm"
@@ -227,6 +228,14 @@ SlashCmdList.WARLOCKPETPROC = function(msg)
       ns.db.lang = tag
       ns.say(L["Language saved. Type /reload to switch."])
     end
+  elseif cmd == "brandid" then
+    -- 0.2.0: which debuff the game looks for on the pet's target (for testing; "default" = 1293696)
+    local id = tonumber(rest)
+    ns.db.brand.debuffID = id
+    local ok = ns.Alert.engineFilters()
+    ns.say(string.format(L["Brand debuff ID: %s%s"], tostring(id or table.concat(ns.Alert.BRAND_DEBUFF_IDS, ", ")),
+      ok and "" or (" " .. L["(the game's aura engine is not available)"])))
+    ns.dbg("ENGINE debuff ID " .. tostring(id or "default"))
   elseif cmd == "reset" then
     ns.resetSettings()
     ns.Alert.applyPosition()

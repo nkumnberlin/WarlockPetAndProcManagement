@@ -2,7 +2,7 @@
 
 A warlock addon for **World of Warcraft: Forever**. It watches your demon and warns you on screen (with an optional sound) when something is wrong. Proc management comes in a later version.
 
-## Features (v0.1.2)
+## Features (v0.2.0)
 
 **Pet not attacking**
 - In a fight, when your pet is alive but **not attacking** – e.g. it is on Passive and you haven't sent it in yet, or its target died – a warning appears in the middle of the screen.
@@ -12,7 +12,7 @@ A warlock addon for **World of Warcraft: Forever**. It watches your demon and wa
 - Only when you have the talent learned.
 - When your pet attacks an enemy **without your brand** (never branded, or the 10 seconds ran out), a warning appears. It goes away as soon as your Searing Pain lands on that enemy, and it waits while a Searing Pain is on its way.
 - Resisted Searing Pains don't count as a brand.
-- In raids and dungeons the game hides which enemy your pet attacks. There any brand you applied in the last 10 seconds counts, and the warning comes when you haven't applied a new one since. In the open world it is checked per enemy.
+- In raids and dungeons the game hides which enemy your pet attacks from addons. There the game itself checks your brand on your pet's target and shows the warning only while it is missing (v0.2.0, can be switched off). The sound comes when no brand of yours landed in the last 10 seconds. In the open world the addon checks per enemy.
 - *Experimental, off by default:* count the pet's 6 empowered attacks and end the brand early when they are used up.
 
 **Low pet health**

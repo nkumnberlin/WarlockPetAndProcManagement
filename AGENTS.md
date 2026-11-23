@@ -36,6 +36,7 @@ Unlike DotWatch this addon is **warlock-only by design**: on other classes it lo
 - **Empowered pet hit:** fire/shadow `UNIT_COMBAT WOUND` + `UNIT_AURA updated` on the branded enemy in the same frame (Imp: Firebolt hits twice, one update).
 - **Pet casts** are readable (`UNIT_SPELLCAST_SUCCEEDED` for `pet`, with spell ID).
 - **Instances (confirmed by Nico's dungeon log, 2026-11-23):** enemy names/GUIDs are secret; `UnitIsUnit` matched `target` with nameplates, but `pettarget` never matched the branded enemy. So since 0.1.4 the brand check uses a **time rule** whenever the pet's target has no readable GUID: any brand applied in the last 10 s (or a Searing Pain on its way) counts; brands are kept until their 10 s end even when their enemy can't be followed. Known limit: a brand on another enemy also counts there. Open world stays per enemy (GUIDs). **Pet health is secret in fights** there too (`HP secret`) → the low-health warning runs through the gate, without sound.
+- **Game aura engine (0.2.0):** `CreateFrame("AuraContainer", nil, parent, "CustomAuraContainerTemplate, DisableUntrustedLayoutScriptsTemplate")`, `AddAuraGroup(key, "HARMFUL|PLAYER", {candidateFilters = {includeSpellIDs = {[id] = true}}, maxFrameCount = 1, layout = {elementWidth, elementHeight}, initializeFrame})`, `SetUnit("pettarget")`, `SetEnabled(true)`, `UpdateAllAuras()` (no aura events for pettarget: refreshed on UNIT_TARGET pet, any UNIT_AURA while the line is up, every 0.4 s). The brand line's text sits in a clip from the container's right edge to the line's right edge: the container is only wide while our brand is on the pet's target, so the game hides the line then (idea from ForeverAuras' "Aura(s) Missing", SecretAuraSingle.lua). The addon can't know whether it shows: the line is up "quiet" while a brand of the last 10 s exists, with sound only when none does. ⚠️ Unverified in game: debuff ID **1293696** (Wowhead: the 10 s Demonic Brand aura; `/wpm brandid <id>` tries others), and that the engine follows `pettarget`. `ENGINE` and `BRAND why ... engine ..., width ...` debug lines.
 
 ---
 
@@ -51,8 +52,8 @@ Unlike DotWatch this addon is **warlock-only by design**: on other classes it lo
 | `Options.lua` | `ns.Options`: options window (700 × 520, nav left), AddOns settings entry, minimap button |
 
 - SavedVariables `WarlockPetAndProcManagementDB`: `locked`, `pos = {x, y}` (top center of the warnings), `lang`, `debugChat`, `minimap`, `idle{...}` (pet not attacking; was `passive` in 0.1.0, migrated on load), `brand{...}`, `hp{...}` (+ `threshold`, `ooc`), `debug` (last 500 lines) + `debugPrev`.
-- Per-warning settings: `on, text (nil = default), size, color, icon, pulse, sound, soundKey, repeatSec, delay`; brand also `charges` (experimental, off by default).
-- Debug tags: LOAD, LOGIN, PET, ATTACK, HP, GATE, ALERT, BRAND, TALENT, SETTINGS, ERROR.
+- Per-warning settings: `on, text (nil = default), size, color, icon, pulse, sound, soundKey, repeatSec, delay`; brand also `charges`, `engine` (0.2.0, default on), `debuffID` (nil = 1293696) (experimental, off by default).
+- Debug tags: LOAD, LOGIN, PET, ATTACK, HP, GATE, ENGINE, ZONE, ALERT, BRAND, TALENT, SETTINGS, ERROR.
 - Proc management will get its own file (`Procs.lua`), its own warning kinds in `Alert.KINDS` and its own nav group.
 
 ---

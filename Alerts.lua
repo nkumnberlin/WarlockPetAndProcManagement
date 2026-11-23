@@ -81,15 +81,31 @@ end
 ---------------------------------------------------------------------------
 -- A warning line (used by the real holder and by the previews in the options)
 ---------------------------------------------------------------------------
-function A.newLine(parent)
+local LINE_W = 460       -- the holder's (and every line's) width
+local CLIP_MARGIN = 500  -- room around a clipped line for long text and big icons
+local CLIP_MARGIN_V = 60
+
+-- clipped = true (0.2.0): text and icons are created inside a clip frame, so a gate can hide them.
+-- They are made there in place, never moved into it later (ForeverAuras: frames tied to an aura
+-- container must not be re-parented). Until a gate anchors it, the clip is open around the line.
+function A.newLine(parent, clipped)
   local line = CreateFrame("Frame", nil, parent)
   line:SetSize(10, 10)
-  line.fs = line:CreateFontString(nil, "OVERLAY")
+  local host = line
+  if clipped and line.SetClipsChildren then
+    local ok, clip = pcall(CreateFrame, "Frame", nil, line, "DisableUntrustedLayoutScriptsTemplate")
+    if not ok or not clip then clip = CreateFrame("Frame", nil, line) end
+    clip:SetClipsChildren(true)
+    clip:SetPoint("TOPLEFT", line, "TOPLEFT", -CLIP_MARGIN, CLIP_MARGIN_V)
+    clip:SetPoint("BOTTOMRIGHT", line, "BOTTOMRIGHT", CLIP_MARGIN, -CLIP_MARGIN_V)
+    line.clip, host = clip, clip
+  end
+  line.fs = host:CreateFontString(nil, "OVERLAY")
   line.fs:SetPoint("CENTER", line, "CENTER", 0, 0)
-  line.icon = line:CreateTexture(nil, "OVERLAY")
+  line.icon = host:CreateTexture(nil, "OVERLAY")
   line.icon:SetPoint("RIGHT", line.fs, "LEFT", -8, 0)
   line.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-  line.icon2 = line:CreateTexture(nil, "OVERLAY") -- the same icon right of the text, for balance
+  line.icon2 = host:CreateTexture(nil, "OVERLAY") -- the same icon right of the text, for balance
   line.icon2:SetPoint("LEFT", line.fs, "RIGHT", 8, 0)
   line.icon2:SetTexCoord(0.07, 0.93, 0.07, 0.93)
   return line
@@ -126,15 +142,16 @@ end
 -- The holder on screen
 ---------------------------------------------------------------------------
 local holder = CreateFrame("Frame", "WarlockPetProcAlertFrame", UIParent)
-holder:SetSize(460, 40)
+holder:SetSize(LINE_W, 40)
 holder:SetFrameStrata("HIGH")
 holder:SetClampedToScreen(true)
 holder:EnableMouse(false)
 holder:Hide()
 A.holder = holder
 
+A.GATED = { brand = true, hp = true } -- lines whose visibility the game can decide
 A.lines = {}
-for _, kind in ipairs(A.KINDS) do A.lines[kind] = A.newLine(holder) end
+for _, kind in ipairs(A.KINDS) do A.lines[kind] = A.newLine(holder, A.GATED[kind]) end
 
 ---------------------------------------------------------------------------
 -- Gate for the low-health line (0.1.2). When the pet's health is a secret value in a fight, the addon
@@ -148,7 +165,7 @@ for _, kind in ipairs(A.KINDS) do A.lines[kind] = A.newLine(holder) end
 ---------------------------------------------------------------------------
 local GATE_W = 200000 -- px for 100 %: 1 % = 2000 px, more than any line is wide
 local function makeGate(line)
-  if not line.SetClipsChildren then return end
+  if not line.clip then A.gateErr = "no clip frames" return end
   local ok, err = pcall(function()
     local bar = CreateFrame("StatusBar", nil, line)
     bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
@@ -157,18 +174,113 @@ local function makeGate(line)
     bar:SetMinMaxValues(0, 1)
     bar:SetValue(0.000001)
     bar:SetSize(GATE_W, 10)
-    local clip = CreateFrame("Frame", nil, line)
-    clip:SetClipsChildren(true)
+    local clip = line.clip
+    clip:ClearAllPoints()
     clip:SetPoint("TOPLEFT", fill, "TOPRIGHT", 0, 0)
     clip:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 0, 0)
-    line.fs:SetParent(clip)
-    line.icon:SetParent(clip)
-    line.icon2:SetParent(clip)
     line.gate = { bar = bar, clip = clip }
   end)
   if not ok then A.gateErr = tostring(err) end -- logged once the saved variables are loaded
 end
 makeGate(A.lines.hp)
+
+---------------------------------------------------------------------------
+-- Engine gate for the Demonic Brand line (0.2.0). In raids and dungeons the game hides which enemy the
+-- pet attacks, but Blizzard's own aura engine (CustomAuraContainerTemplate, Blizzard_AuraContainer) can
+-- still read the pet's target's auras and lay them out; the addon never sees them. The trick comes from
+-- ForeverAuras' "Aura(s) Missing" (SecretAuraSingle.lua, GPL; only the idea is used here): an invisible
+-- aura group bound to "pettarget", filtered to our own Demonic Brand debuff, gives its container a width
+-- only while the brand is there. The line's clip starts at the container's right edge and ends at the
+-- line's right edge (+ margin): no brand -> container ~1 px wide -> the clip covers the line (visible);
+-- brand -> container exactly as wide as the clip -> the clip has no width (hidden).
+-- The game decides; nothing is read back, so the addon doesn't know whether the line shows.
+---------------------------------------------------------------------------
+A.BRAND_GROUP = "WPPMBrand"
+A.BRAND_DEBUFF_IDS = { 1293696 } -- Wowhead: the 10 s Demonic Brand aura (talent 1293695)
+
+function A.brandDebuffIDs()
+  local ids = {}
+  local own = ns.db and tonumber(ns.db.brand.debuffID)
+  for _, id in ipairs(own and { own } or A.BRAND_DEBUFF_IDS) do ids[id] = true end
+  return ids
+end
+
+local function makeEngineGate(line)
+  if not line.clip then return "no clip frames" end
+  if not (C_XMLUtil and C_XMLUtil.GetTemplateInfo) then return "no C_XMLUtil" end
+  if C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.LoadAddOn and not C_AddOns.IsAddOnLoaded("Blizzard_AuraContainer") then
+    pcall(C_AddOns.LoadAddOn, "Blizzard_AuraContainer")
+  end
+  if not C_XMLUtil.GetTemplateInfo("CustomAuraContainerTemplate") then return "no CustomAuraContainerTemplate" end
+  local ok, err = pcall(function()
+    local okC, c = pcall(CreateFrame, "AuraContainer", nil, line, "CustomAuraContainerTemplate, DisableUntrustedLayoutScriptsTemplate")
+    if not okC or not c then c = CreateFrame("AuraContainer", nil, line, "CustomAuraContainerTemplate") end
+    c:SetEnabled(false)
+    if c.SetAuraProcessingPolicy and CustomAuraContainerAuraProcessingPolicy then
+      c:SetAuraProcessingPolicy(CustomAuraContainerAuraProcessingPolicy.None)
+    end
+    c:SetPoint("TOPLEFT", line, "TOPLEFT", -CLIP_MARGIN, 0)
+    local w = LINE_W + 1 + 2 * CLIP_MARGIN
+    c:AddAuraGroup(A.BRAND_GROUP, "HARMFUL|PLAYER", {
+      candidateFilters = { includeSpellIDs = A.brandDebuffIDs() },
+      maxFrameCount = 1,
+      layout = { elementWidth = w, elementHeight = 10 },
+      initializeFrame = function(button) -- draws nothing; only the container's width is used
+        button:SetSize(w, 10)
+        button:SetAlpha(0)
+        button:EnableMouse(false)
+      end,
+    })
+    local clip = line.clip
+    clip:ClearAllPoints()
+    clip:SetPoint("TOPLEFT", c, "TOPRIGHT", -1, CLIP_MARGIN_V)
+    clip:SetPoint("BOTTOMRIGHT", line, "BOTTOMRIGHT", CLIP_MARGIN, -CLIP_MARGIN_V)
+    c:SetUnit("pettarget")
+    c:SetEnabled(true)
+    line.engine = { container = c, groupOn = true }
+  end)
+  if not ok then return tostring(err) end
+end
+
+-- called at login (the saved variables are there for a custom debuff ID)
+function A.setupEngine()
+  local line = A.lines.brand
+  if line.engine or A.engineErr then return end
+  A.engineErr = makeEngineGate(line)
+  ns.dbg("ENGINE brand gate " .. (line.engine and "ready (pettarget)" or ("not available: " .. tostring(A.engineErr))))
+end
+function A.engineReady() return A.lines.brand.engine ~= nil end
+-- the engine reads the pet's target again (pet target changed, auras changed)
+function A.engineRefresh()
+  local e = A.lines.brand.engine
+  if e and e.groupOn then pcall(e.container.UpdateAllAuras, e.container) end
+end
+-- open = the group off: nothing found, the line always visible (tests, move mode, engine switched off)
+function A.engineOpen(open)
+  local e = A.lines.brand.engine
+  if not e or e.groupOn == not open then return end
+  if pcall(e.container.SetAuraGroupEnabled, e.container, A.BRAND_GROUP, not open) then
+    e.groupOn = not open
+    if e.groupOn then A.engineRefresh() end
+  end
+end
+-- a new debuff ID (/wpm brandid)
+function A.engineFilters()
+  local e = A.lines.brand.engine
+  if not e then return false end
+  local ok = pcall(e.container.SetAuraGroupCandidateFilters, e.container, A.BRAND_GROUP, { includeSpellIDs = A.brandDebuffIDs() })
+  A.engineRefresh()
+  return ok
+end
+-- diagnostics: is the container's width readable? (if it were, the addon could know the brand)
+function A.engineWidth()
+  local e = A.lines.brand.engine
+  if not e then return "none" end
+  local ok, w = pcall(e.container.GetWidth, e.container)
+  if not ok then return "err" end
+  if ns.issecret(w) then return "secret" end
+  return tostring(w)
+end
 
 local function placeGate(line, kind, h)
   local g = line.gate
@@ -236,7 +348,9 @@ function A.layout()
     if shouldShow(kind, t) then
       local h = A.paint(line, kind)
       placeGate(line, kind, h)
-      if not ns.db.locked or (A.testUntil[kind] and A.testUntil[kind] > t) then A.gateOpen(kind) end
+      local sample = not ns.db.locked or (A.testUntil[kind] and A.testUntil[kind] > t)
+      if sample then A.gateOpen(kind) end
+      if kind == "brand" then A.engineOpen(sample or ns.db.brand.engine == false) end
       line:ClearAllPoints()
       line:SetPoint("TOPLEFT", holder, "TOPLEFT", 0, -y)
       line:SetPoint("TOPRIGHT", holder, "TOPRIGHT", 0, -y)
@@ -259,6 +373,11 @@ function A.set(kind, on, quiet)
   if on and a and (a.quiet or false) ~= (quiet or false) then
     a.quiet = quiet
     ns.dbg("ALERT " .. kind .. (quiet and " now decided by the game" or " now decided by the addon"))
+    -- 0.2.0: became certain while up -> its sound now
+    if not quiet and ns.db[kind].sound then
+      A.playSound(ns.db[kind].soundKey)
+      a.lastSound = ns.now()
+    end
   end
   if on and not a then
     local t = ns.now()
@@ -410,4 +529,10 @@ table.insert(ns.hooks.ready, function()
   A.applyPosition()
   moveParts(not ns.db.locked)
   A.layout()
+end)
+table.insert(ns.hooks.login, function()
+  if ns.isWarlock then
+    A.setupEngine()
+    A.layout()
+  end
 end)
