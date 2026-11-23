@@ -2,11 +2,11 @@
 
 A warlock addon for **World of Warcraft: Forever**. It watches your demon and warns you on screen (with an optional sound) when something is wrong. Proc management comes in a later version.
 
-## Features (v0.1.0)
+## Features (v0.1.1)
 
-**Passive pet**
-- When a fight starts and your demon is set to **Passive**, a warning appears in the middle of the screen.
-- Also when you set it to Passive or summon it on Passive during a fight. The warning goes away when you change the mode, the pet is gone or the fight ends.
+**Pet not attacking**
+- In a fight, when your pet is alive but **not attacking** – e.g. it is on Passive and you haven't sent it in yet, or its target died – a warning appears in the middle of the screen.
+- A short grace period (default 1.5 s) gives you time to send the pet in. The warning goes away as soon as the pet attacks, is gone or the fight ends. Works in every pet mode.
 
 **Demonic Brand** (Demonology talent)
 - Only when you have the talent learned.
@@ -25,7 +25,7 @@ A warlock addon for **World of Warcraft: Forever**. It watches your demon and wa
 - `/wpm` – options (also the minimap button or Escape › Options › AddOns)
 - `/wpm test` – show the warnings for 5 seconds
 - `/wpm unlock` / `/wpm lock` – move the warnings
-- `/wpm status` – pet, pet mode, talent, running brands
+- `/wpm status` – pet, pet mode, attacking or not, talent, running brands
 - `/wpm help` – all commands
 
 Languages: English, German.

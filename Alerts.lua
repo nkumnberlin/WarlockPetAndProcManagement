@@ -1,6 +1,6 @@
 -- Warlock Pet & Proc Management: on-screen warnings and sounds.
 --
--- One holder frame near the screen center carries one line per warning kind ("passive", "brand"),
+-- One holder frame near the screen center carries one line per warning kind ("idle" = pet not attacking, "brand"),
 -- stacked top to bottom in that order; only the active ones take space. Each line: optional icon +
 -- the player's own message in their size and color, optionally pulsing. A sound plays when a warning
 -- comes up and, if wanted, again every few seconds while it stays.
@@ -13,9 +13,9 @@ local L = ns.L
 local A = {}
 ns.Alert = A
 
-A.KINDS = { "passive", "brand" } -- top to bottom
+A.KINDS = { "idle", "brand" } -- top to bottom
 A.DEFAULT_TEXT = {
-  passive = "Your pet is on PASSIVE!",
+  idle = "Your pet is not attacking!",
   brand = "Pet attacks without %s!", -- %s = the talent's name from the game
 }
 
@@ -57,7 +57,7 @@ end
 local FONT = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
 
 local function iconFor(kind)
-  if kind == "passive" then return PET_PASSIVE_TEXTURE or "Interface\\Icons\\Ability_Seal" end
+  if kind == "idle" then return PET_ATTACK_TEXTURE or "Interface\\Icons\\Ability_GhoulFrenzy" end
   local tex = C_Spell and C_Spell.GetSpellTexture and ns.plain(C_Spell.GetSpellTexture, 1293695)
   if not tex and C_Spell and C_Spell.GetSpellTexture then tex = ns.plain(C_Spell.GetSpellTexture, 5676) end
   return tex or "Interface\\Icons\\Spell_Fire_SoulBurn"

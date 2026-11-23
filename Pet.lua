@@ -1,10 +1,12 @@
 -- Warlock Pet & Proc Management: pet management.
 --
--- 1. Pet on passive: while you are in combat and your demon's pet bar shows Passive as the active
---    mode, the "passive" warning is up. It comes up when the fight starts (or when the pet is set to
---    passive / summoned on passive during the fight) and goes away when the mode changes, the pet
---    is gone or the fight ends. Read from the pet bar (GetPetActionInfo, token PET_MODE_PASSIVE);
---    an unreadable (secret) answer keeps the last known state.
+-- 1. Pet not attacking (0.1.1, was "pet on passive" in 0.1.0: Nico keeps his pet on Passive on
+--    purpose and sends it in with Attack; what matters is whether it attacks). While you are in combat
+--    and your pet is alive but not attacking for longer than the wait time, the "idle" warning is up.
+--    It goes away when the pet attacks, is gone or the fight ends. Works in every pet mode.
+--    "Attacking" = IsPetAttackActive() (the pet's Attack is on; PET_ATTACK_START/STOP), or a pet cast
+--    in the last 3 s (the Imp's Firebolt). If IsPetAttackActive can't be read, a living enemy as the
+--    pet's target counts as attacking. ATTACK lines in the debug log show which source answered.
 --
 -- 2. Demonic Brand (Forever Demonology talent, spell 1293695): your Searing Pain brands the enemy
 --    for 10 s; your pet's next attacks on it deal extra damage. When the talent is learned and your
@@ -30,35 +32,8 @@ function P.hasPet()
   return plain(UnitExists, "pet") == true and plain(UnitIsDeadOrGhost, "pet") ~= true
 end
 
--- true = passive, false = another mode or no pet, nil = not readable
-function P.readPassive()
-  if not GetPetActionInfo then return nil end
-  local exists = plain(UnitExists, "pet")
-  if exists == nil then return nil end
-  if not exists or plain(UnitIsDeadOrGhost, "pet") == true then return false end
-  local passive, sawMode = false, false
-  for i = 1, NUM_PET_ACTION_SLOTS or 10 do
-    local r = { pcall(GetPetActionInfo, i) }
-    if not r[1] then return nil end
-    local name = r[2]
-    if ns.issecret(name) then return nil end
-    if type(name) == "string" and name:find("^PET_MODE_") then
-      sawMode = true
-      if name == "PET_MODE_PASSIVE" then
-        -- name, texture, isToken, isActive ...; some clients put a subtext before the texture,
-        -- then isActive is one further
-        local active = r[5]
-        if type(r[4]) == "string" then active = r[6] end
-        if ns.issecret(active) then return nil end
-        passive = (active == true or active == 1)
-      end
-    end
-  end
-  if not sawMode then return nil end -- pet bar not filled yet
-  return passive
-end
-
--- pet mode for /wpm status and the options
+-- pet mode for /wpm status and the options (pet bar token PET_MODE_*; some clients put a subtext
+-- before the texture, then isActive is one position further)
 function P.modeName()
   if not P.hasPet() or not GetPetActionInfo then return nil end
   for i = 1, NUM_PET_ACTION_SLOTS or 10 do
@@ -74,27 +49,49 @@ function P.modeName()
   end
 end
 
----------------------------------------------------------------------------
--- 1. Pet on passive
----------------------------------------------------------------------------
-P.passive = false -- last known state
+local B = { list = {}, pending = {}, recent = {} } -- Demonic Brand, section 2
 
-function P.checkPassive(why)
-  local v = P.readPassive()
-  if v ~= nil and v ~= P.passive then
-    ns.dbg("PASSIVE " .. tostring(v) .. " (" .. why .. ")")
-    P.passive = v
-  elseif v == nil and why ~= "tick" then
-    ns.dbg("PASSIVE unreadable (" .. why .. "), keeping " .. tostring(P.passive))
+---------------------------------------------------------------------------
+-- 1. Pet not attacking
+---------------------------------------------------------------------------
+-- a living enemy as the pet's target
+local function petHasEnemy()
+  return plain(UnitExists, "pettarget") == true and plain(UnitCanAttack, "player", "pettarget") ~= false
+    and plain(UnitIsDead, "pettarget") ~= true
+end
+
+-- is the pet attacking? returns true/false and which signal answered (for the debug log)
+function P.attackState(t)
+  if not P.hasPet() then return false, "no pet" end
+  if B.lastPetCast and t - B.lastPetCast < 3 then return true, "pet cast" end
+  if IsPetAttackActive then
+    local ok, v = pcall(IsPetAttackActive)
+    if ok and not ns.issecret(v) then return (v == true or v == 1), "attack " .. tostring(v) end
   end
-  local on = ns.db.passive.on and ns.inCombat and P.passive and P.hasPet()
-  ns.Alert.set("passive", on and true or false)
+  return petHasEnemy(), "pet target (attack state unreadable)"
+end
+
+P.attacking = nil -- last state, for the log
+function P.checkIdle(t)
+  local c = ns.db.idle
+  local att, how = P.attackState(t)
+  if att ~= P.attacking then
+    ns.dbg("ATTACK " .. tostring(att) .. " (" .. how .. ")")
+    P.attacking = att
+  end
+  local want = c.on and ns.inCombat and P.hasPet() and not att
+  if want then
+    P.idleSince = P.idleSince or t
+    if t - P.idleSince < (c.delay or 0) then want = false end
+  else
+    P.idleSince = nil
+  end
+  ns.Alert.set("idle", want and true or false)
 end
 
 ---------------------------------------------------------------------------
 -- 2. Demonic Brand
 ---------------------------------------------------------------------------
-local B = { list = {}, pending = {}, recent = {} }
 P.brand = B
 B.TALENT = 1293695
 B.SEARING = 5676 -- rank 1; every rank is matched by name
@@ -341,15 +338,9 @@ function B.castingAt(unit)
   return false
 end
 
--- is the pet fighting its target? pet in combat (or auto attack on, or a pet cast in the last 3 s)
--- and the target is a living enemy
+-- is the pet fighting its target? attacking (see P.attackState) and the target is a living enemy
 function P.petAttacking(t)
-  if not P.hasPet() then return false end
-  if plain(UnitExists, "pettarget") ~= true then return false end
-  if plain(UnitCanAttack, "player", "pettarget") == false or plain(UnitIsDead, "pettarget") == true then return false end
-  if IsPetAttackActive and plain(IsPetAttackActive) == true then return true end
-  if B.lastPetCast and t - B.lastPetCast < 3 then return true end
-  return plain(UnitAffectingCombat, "pet") == true
+  return petHasEnemy() and (P.attackState(t)) == true
 end
 
 function P.checkBrand(t)
@@ -372,14 +363,16 @@ function P.update()
   if not (ns.db and ns.isWarlock) then return end
   local t = ns.now()
   B.prune(t)
-  P.checkPassive("tick")
+  P.checkIdle(t)
   P.checkBrand(t)
 end
 
 function P.status()
   local t = ns.now()
+  local att, how = P.attackState(t)
   ns.say(string.format(L["Pet: %s, mode: %s"], P.hasPet() and (str(plain(UnitName, "pet")) or "?") or L["none"],
     P.modeName() or "?"))
+  ns.say(string.format(L["Pet attacking: %s (%s)"], att and L["yes"] or L["no"], how))
   ns.say(string.format(L["%s talent: %s, running brands: %d"], ns.brandName(),
     B.talent() and L["learned"] or L["not learned"], #B.list))
   for _, b in ipairs(B.list) do
@@ -410,20 +403,23 @@ function P.start()
   ns.on("NAME_PLATE_UNIT_ADDED", function(tok) B.retoken(tok) end)
   ns.on("NAME_PLATE_UNIT_REMOVED", function(tok) B.dropToken(tok) end)
   for _, e in ipairs({ "PET_BAR_UPDATE", "PET_UI_UPDATE", "PET_ATTACK_START", "PET_ATTACK_STOP" }) do
-    ns.on(e, function() P.checkPassive(e) P.update() end)
+    ns.on(e, function()
+      if e == "PET_ATTACK_START" or e == "PET_ATTACK_STOP" then ns.dbg("ATTACK event " .. e) end
+      P.update()
+    end)
   end
   ns.on("UNIT_PET", function(unit)
     if unit == "player" then
       B.since = nil
-      P.checkPassive("UNIT_PET")
       P.update()
     end
   end)
-  ns.on("PLAYER_REGEN_DISABLED", function() P.checkPassive("combat start") P.update() end)
+  ns.on("PLAYER_REGEN_DISABLED", function() P.idleSince = nil P.update() end)
   ns.on("PLAYER_REGEN_ENABLED", function()
-    ns.Alert.set("passive", false)
+    ns.Alert.set("idle", false)
     ns.Alert.set("brand", false)
     B.since = nil
+    P.idleSince = nil
   end)
   for _, e in ipairs({ "SPELLS_CHANGED", "PLAYER_TALENT_UPDATE", "CHARACTER_POINTS_CHANGED", "TRAIT_CONFIG_UPDATED" }) do
     ns.on(e, B.rescanTalent)

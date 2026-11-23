@@ -31,7 +31,7 @@ ns.STRINGS.deDE = {
   ["not learned"] = "nicht erlernt",
 
   -- warnings on screen
-  ["Your pet is on PASSIVE!"] = "Dein Begleiter ist PASSIV!",
+  ["Your pet is not attacking!"] = "Dein Begleiter greift nicht an!",
   ["Pet attacks without %s!"] = "Begleiter greift ohne %s an!",
   ["your pet"] = "dein Begleiter",
   ["Lock"] = "Sperren",
@@ -57,7 +57,7 @@ ns.STRINGS.deDE = {
   ["Pet and proc warnings for warlocks."] = "Begleiter- und Proc-Warnungen für Hexenmeister.",
   ["General"] = "Allgemein",
   ["Pet management"] = "Begleiter",
-  ["Passive pet"] = "Passiver Begleiter",
+  ["Pet not attacking"] = "Begleiter greift nicht an",
   ["Close"] = "Schließen",
   ["Test"] = "Test",
   ["Shows every switched-on warning for 5 seconds where it will appear."] = "Zeigt jede eingeschaltete Warnung 5 Sekunden lang dort, wo sie erscheinen wird.",
@@ -89,8 +89,14 @@ ns.STRINGS.deDE = {
   ["Proc management (alerts for your warlock procs) comes in a later version."] = "Proc-Verwaltung (Hinweise für deine Hexenmeister-Procs) kommt in einer späteren Version.",
 
   -- warning pages
-  ["Warn when my pet is on passive in a fight"] = "Warnen, wenn mein Begleiter im Kampf passiv ist",
-  ["When a fight starts (or your pet is set to passive or summoned during it) and your pet bar shows Passive, this warning comes up. It goes away when you change the mode, the pet is gone or the fight ends."] = "Wenn ein Kampf beginnt (oder dein Begleiter währenddessen auf Passiv gestellt oder beschworen wird) und deine Begleiterleiste Passiv zeigt, erscheint diese Warnung. Sie verschwindet, wenn du den Modus änderst, der Begleiter weg ist oder der Kampf endet.",
+  ["Warn when my pet doesn't attack in a fight"] = "Warnen, wenn mein Begleiter im Kampf nicht angreift",
+  ["In a fight, when your pet is alive but not attacking (its Attack isn't on, e.g. on Passive before you send it in, or after its target died), this warning comes up. It goes away when the pet attacks, is gone or the fight ends. Works in every pet mode."] = "Wenn dein Begleiter im Kampf lebt, aber nicht angreift (sein Angriff ist nicht aktiv, z. B. auf Passiv, bevor du ihn losschickst, oder nachdem sein Ziel gestorben ist), erscheint diese Warnung. Sie verschwindet, sobald der Begleiter angreift, weg ist oder der Kampf endet. Funktioniert in jedem Begleitermodus.",
+  ["Time to send your pet in: the warning only comes up when the pet hasn't attacked for this long in a fight."] = "Zeit, um deinen Begleiter loszuschicken: die Warnung erscheint erst, wenn er im Kampf so lange nicht angegriffen hat.",
+  ["The warning only comes up when your pet has attacked an enemy without the brand for this long."] = "Die Warnung erscheint erst, wenn dein Begleiter so lange einen Gegner ohne Brandmal angegriffen hat.",
+  ["Attacking"] = "Greift an",
+  ["yes"] = "ja",
+  ["no"] = "nein",
+  ["Pet attacking: %s (%s)"] = "Begleiter greift an: %s (%s)",
   ["Warn when my pet attacks an enemy without the brand"] = "Warnen, wenn mein Begleiter einen Gegner ohne Brandmal angreift",
   ["Demonology talent: your Searing Pain brands the enemy for 10 sec and your pet's next attacks on it deal extra damage. The warning comes up while your pet attacks an enemy that has no brand from you (never branded, or the 10 sec ran out). It goes away when your Searing Pain lands on that enemy."] = "Dämonologie-Talent: dein Sengender Schmerz brandmarkt den Gegner für 10 Sek. und die nächsten Angriffe deines Begleiters auf ihn verursachen zusätzlichen Schaden. Die Warnung erscheint, solange dein Begleiter einen Gegner ohne dein Brandmal angreift (nie gebrandmarkt oder die 10 Sek. sind abgelaufen). Sie verschwindet, sobald dein Sengender Schmerz diesen Gegner trifft.",
   ["Message"] = "Nachricht",

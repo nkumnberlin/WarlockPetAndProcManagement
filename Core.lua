@@ -1,7 +1,7 @@
 -- Warlock Pet & Proc Management: core.
 -- Namespace, saved settings, helpers that never touch secret values, the event hub, the debug
 -- log and the slash commands. The features live in Alerts.lua (on-screen warnings and sounds),
--- Pet.lua (pet on passive, Demonic Brand) and Options.lua (options window, minimap button).
+-- Pet.lua (pet not attacking, Demonic Brand) and Options.lua (options window, minimap button).
 --
 -- WoW Forever rules this addon follows (see AGENTS.md): no combat log, no reading of enemy auras in
 -- combat, no math or comparisons on secret values, no writes to Blizzard globals or tables.
@@ -9,7 +9,7 @@
 local ADDON_NAME, ns = ...
 local L = ns.L
 
-ns.VERSION = "0.1.0"
+ns.VERSION = "0.1.1"
 ns.TITLE = "Warlock Pet & Proc"
 ns.SAME_FRAME = 0.02 -- seconds: events in the same frame (DotWatch, DotProbe 0.7)
 
@@ -72,7 +72,7 @@ ns.DEFAULTS = {
   lang = "auto",
   debugChat = false,
   minimap = { angle = 215, hide = false },
-  passive = { on = true, size = 30, color = { 1, 0.22, 0.22 }, icon = true, pulse = true,
+  idle = { on = true, size = 30, color = { 1, 0.22, 0.22 }, icon = true, pulse = true, delay = 1.5,
     sound = true, soundKey = "horn", repeatSec = 0 },
   brand = { on = true, size = 26, color = { 1, 0.55, 0.12 }, icon = true, pulse = true,
     sound = true, soundKey = "emote", repeatSec = 0, delay = 1, charges = false },
@@ -90,7 +90,7 @@ local function fill(dst, src)
 end
 ns.fillDefaults = fill
 
--- reset one part (e.g. "passive") or everything but the debug log
+-- reset one part (e.g. "idle") or everything but the debug log
 function ns.resetSettings(part)
   local db = ns.db
   if part then
@@ -144,6 +144,15 @@ ns.on("ADDON_LOADED", function(name)
   if name ~= ADDON_NAME then return end
   local db = WarlockPetAndProcManagementDB
   if type(db) ~= "table" then db = {} WarlockPetAndProcManagementDB = db end
+  -- 0.1.1: the "pet on passive" warning became "pet not attacking": keep its look and sound, but not
+  -- its old message (it said "passive")
+  if type(db.passive) == "table" then
+    if db.idle == nil then
+      db.idle = db.passive
+      db.idle.text = nil
+    end
+    db.passive = nil
+  end
   fill(db, ns.DEFAULTS)
   db.debugPrev = db.debug
   db.debug = {}

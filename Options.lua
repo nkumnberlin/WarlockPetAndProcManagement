@@ -307,7 +307,7 @@ local function makePreview(parent, kind, top)
 end
 
 ---------------------------------------------------------------------------
--- A warning page (pet on passive, Demonic Brand)
+-- A warning page (pet not attacking, Demonic Brand)
 ---------------------------------------------------------------------------
 local COL2 = 310 -- right column starts here
 
@@ -347,23 +347,29 @@ local function buildAlertPage(pg, kind, title, enableLabel, enableHelp)
   makeSlider(pg, "Repeat the sound", 0, 10, 1, function(v)
     return v == 0 and L["never"] or string.format(L["every %d s"], v)
   end, function() return c().repeatSec end, function(v) c().repeatSec = v end, 150):SetPoint("TOPLEFT", COL2 + 6, -208)
-
 end
 
-local function buildPassivePage(pg)
-  buildAlertPage(pg, "passive", "Passive pet", "Warn when my pet is on passive in a fight",
-    "When a fight starts (or your pet is set to passive or summoned during it) and your pet bar shows Passive, this warning comes up. It goes away when you change the mode, the pet is gone or the fight ends.")
-  makePreview(pg, "passive", -300)
+-- right column below the sound: how long the problem must last before the warning comes up
+local function makeDelay(pg, kind, maxV, help)
+  makeSection(pg, "Timing", -244, COL2)
+  local s = makeSlider(pg, "Wait before warning", 0, maxV, 0.5, function(v)
+    return string.format(L["%.1f s"], v)
+  end, function() return ns.db[kind].delay end, function(v) ns.db[kind].delay = v end, 150)
+  s:SetPoint("TOPLEFT", COL2 + 6, -282)
+  tip(s, "Wait before warning", help)
+end
+
+local function buildIdlePage(pg)
+  buildAlertPage(pg, "idle", "Pet not attacking", "Warn when my pet doesn't attack in a fight",
+    "In a fight, when your pet is alive but not attacking (its Attack isn't on, e.g. on Passive before you send it in, or after its target died), this warning comes up. It goes away when the pet attacks, is gone or the fight ends. Works in every pet mode.")
+  makeDelay(pg, "idle", 5, "Time to send your pet in: the warning only comes up when the pet hasn't attacked for this long in a fight.")
+  makePreview(pg, "idle", -336)
 end
 
 local function buildBrandPage(pg)
   buildAlertPage(pg, "brand", ns.brandName(), "Warn when my pet attacks an enemy without the brand",
     "Demonology talent: your Searing Pain brands the enemy for 10 sec and your pet's next attacks on it deal extra damage. The warning comes up while your pet attacks an enemy that has no brand from you (never branded, or the 10 sec ran out). It goes away when your Searing Pain lands on that enemy.")
-  makeSection(pg, "Timing", -244, COL2)
-  makeSlider(pg, "Wait before warning", 0, 3, 0.5, function(v)
-    return string.format(L["%.1f s"], v)
-  end, function() return ns.db.brand.delay end, function(v) ns.db.brand.delay = v end, 150)
-    :SetPoint("TOPLEFT", COL2 + 6, -282)
+  makeDelay(pg, "brand", 3, "The warning only comes up when your pet has attacked an enemy without the brand for this long.")
   local cb = makeCheck(pg, "Count the pet's attacks (experimental)", "The brand also ends when your pet has used its 6 empowered attacks, not only after 10 sec. The game doesn't say which attack used a charge, so this is a guess (a fire/shadow hit and a debuff change on that enemy at the same moment) and can be off, e.g. with your own DoTs on it.",
     function() return ns.db.brand.charges end, function(v) ns.db.brand.charges = v end)
   cb:SetPoint("TOPLEFT", 26, -290)
@@ -449,7 +455,8 @@ function O.refreshStatus()
     local lines = {
       L["Class"] .. ": " .. (ns.isWarlock and (yes .. L["Warlock"] .. "|r") or (no .. L["not a warlock (addon idle)"] .. "|r")),
       L["Pet"] .. ": " .. (pet and (yes .. pet .. "|r") or (no .. L["none"] .. "|r")) ..
-        (pet and ("   " .. L["Mode"] .. ": " .. (P.passive and (no .. (P.modeName() or "?") .. "|r") or (P.modeName() or "?"))) or ""),
+        (pet and ("   " .. L["Mode"] .. ": " .. (P.modeName() or "?") .. "   " .. L["Attacking"] .. ": " ..
+          ((P.attackState(GetTime())) and (yes .. L["yes"] .. "|r") or (no .. L["no"] .. "|r"))) or ""),
       string.format(L["%s talent"], ns.brandName()) .. ": " .. (P.brand.talent() and (yes .. L["learned"] .. "|r") or (no .. L["not learned (no brand warning)"] .. "|r")),
     }
     O.status:SetText(table.concat(lines, "\n"))
@@ -544,7 +551,7 @@ local function buildOptions()
     pages[i] = pg
   end
   buildGeneralPage(pages[1])
-  buildPassivePage(pages[2])
+  buildIdlePage(pages[2])
   buildBrandPage(pages[3])
 
   -- navigation list on the left; "Pet management" groups its pages (procs will get their own group)
@@ -568,7 +575,7 @@ local function buildOptions()
     end
     f.page = i
   end
-  local NAV = { { 1, "General" }, { nil, "Pet management" }, { 2, "Passive pet", sub = true },
+  local NAV = { { 1, "General" }, { nil, "Pet management" }, { 2, "Pet not attacking", sub = true },
     { 3, ns.brandName(), sub = true } }
   for pos, entry in ipairs(NAV) do
     local i, label = entry[1], entry[2]
