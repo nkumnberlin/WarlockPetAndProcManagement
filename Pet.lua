@@ -339,9 +339,9 @@ end
 function B.prune(t)
   for i = #B.list, 1, -1 do
     local b = B.list[i]
-    local known = b.guid or next(b.tokens)
-    if b.expires <= t or not known then
-      ns.dbg("BRAND end " .. (b.expires <= t and "" or "(enemy lost) ") .. describe(b))
+    -- 0.1.4: a brand whose enemy can't be followed any more stays until its 10 s are over (time rule)
+    if b.expires <= t then
+      ns.dbg("BRAND end " .. describe(b))
       table.remove(B.list, i)
     end
   end
@@ -375,17 +375,30 @@ function B.castingAt(unit)
   return false
 end
 
--- the pet's target, or (0.1.3) your own target when the game won't compare the pet's target with the
--- branded enemy (raids, dungeons): the pet's Attack goes at your target, and so does your Searing Pain
+-- Is the pet's target branded (or our Searing Pain on its way to it)?
+-- Open world: per enemy (GUIDs). 0.1.4, time rule: when the game hides who the pet's target is
+-- (raids and dungeons: no GUID, and the dungeon log of 2026-11-23 showed that pettarget never matched
+-- the branded enemy's target/nameplate tokens), any brand of the last 10 s counts and any Searing Pain
+-- on its way counts; the warning comes when none was applied since. (0.1.3 used your own target
+-- here; the log showed that's not enough: the brand lost its tokens on every target switch.)
+function B.anyRunning(t)
+  for _, b in ipairs(B.list) do
+    if b.expires > t then return true end
+  end
+  return false
+end
 function B.petTargetState(t)
-  local br, casting = B.branded("pettarget", t), B.castingAt("pettarget")
+  local hidden = not ns.guidOf("pettarget")
+  local br, casting -- nil = can't tell
+  if not hidden then br, casting = B.branded("pettarget", t), B.castingAt("pettarget") end
   if br == nil or casting == nil then
     if not B.saidFallback then
       B.saidFallback = true
-      ns.dbg("BRAND pet target can't be compared here: using your target instead")
+      ns.dbg("BRAND pet's enemy hidden here (" .. (hidden and "no guid" or "can't compare") ..
+        "): any brand of the last 10 s counts")
     end
-    if br == nil then br = B.branded("target", t) end
-    if casting == nil then casting = B.castingAt("target") end
+    if br == nil then br = B.anyRunning(t) end
+    if casting == nil then casting = next(B.pending) ~= nil end
   end
   return br and true or false, casting and true or false
 end

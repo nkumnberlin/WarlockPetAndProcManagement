@@ -12,7 +12,7 @@ A warlock addon for **World of Warcraft: Forever**. It watches your demon and wa
 - Only when you have the talent learned.
 - When your pet attacks an enemy **without your brand** (never branded, or the 10 seconds ran out), a warning appears. It goes away as soon as your Searing Pain lands on that enemy, and it waits while a Searing Pain is on its way.
 - Resisted Searing Pains don't count as a brand.
-- Works in dungeons too (enemies are told apart by target, focus, pet target and nameplates).
+- In raids and dungeons the game hides which enemy your pet attacks. There any brand you applied in the last 10 seconds counts, and the warning comes when you haven't applied a new one since. In the open world it is checked per enemy.
 - *Experimental, off by default:* count the pet's 6 empowered attacks and end the brand early when they are used up.
 
 **Low pet health**
