@@ -35,7 +35,7 @@ Unlike DotWatch this addon is **warlock-only by design**: on other classes it lo
 - **Resist:** a failed cast gets `UNIT_COMBAT` MISS/RESIST/IMMUNE/EVADE on that enemy in the same frame (≤ 0.02 s) and no `UNIT_AURA added`.
 - **Empowered pet hit:** fire/shadow `UNIT_COMBAT WOUND` + `UNIT_AURA updated` on the branded enemy in the same frame (Imp: Firebolt hits twice, one update).
 - **Pet casts** are readable (`UNIT_SPELLCAST_SUCCEEDED` for `pet`, with spell ID).
-- **Instances:** enemy names/GUIDs are secret; `UnitIsUnit` between tokens still works. So a brand is remembered by GUID **and** by the tokens that point at its enemy (target, focus, pettarget, nameplates); a token is dropped/re-checked on its change event.
+- **Instances:** enemy names/GUIDs are secret. `UnitIsUnit` between tokens was assumed to work (DotWatch 0.20.4), but the brand warning failed in Nico's raid/dungeon (0.1.2, 2026-11-23): likely a secret `UnitIsUnit`. Since 0.1.3 `isSame` answers true/false/nil; when the pet's target can't be compared, the brand check uses the player's target. `BRAND cast ... | guid, is pettarget` and `BRAND why` lines show the raw answers – confirm from the next dungeon log. So a brand is remembered by GUID **and** by the tokens that point at its enemy (target, focus, pettarget, nameplates); a token is dropped/re-checked on its change event.
 
 ---
 

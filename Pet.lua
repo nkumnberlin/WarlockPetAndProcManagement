@@ -142,13 +142,22 @@ local function tokensOf(unit)
 end
 
 -- is this unit the enemy of brand (or pending cast) b?
+-- true / false, or nil = can't tell (0.1.3: in raids and dungeons UnitIsUnit may answer with a secret)
 local function isSame(unit, b)
   if not unit then return false end
   local g = ns.guidOf(unit)
   if g and b.guid then return g == b.guid end
+  local unknown = false
   for tok in pairs(b.tokens) do
-    if tok == unit or plain(UnitIsUnit, unit, tok) == true then return true end
+    if tok == unit then return true end
+    local ok, v = pcall(UnitIsUnit, unit, tok)
+    if ok and ns.issecret(v) then
+      unknown = true
+    elseif ok and v == true then
+      return true
+    end
   end
+  if unknown then return nil end
   return false
 end
 B.isSame = isSame
@@ -180,15 +189,32 @@ local function describe(b)
   return "[" .. ns.short(b.guid) .. " " .. table.concat(toks, ",") .. "]"
 end
 
+-- 0.1.3 diagnostics for instances: what a raw answer was (value, "secret", "err")
+local function rawAnswer(f, ...)
+  local ok, v = pcall(f, ...)
+  if not ok then return "err" end
+  if ns.issecret(v) then return "secret" end
+  return tostring(v)
+end
+B.rawAnswer = rawAnswer
+
 function B.onSent(unit, destName, castGUID, spellID)
-  if unit ~= "player" or not B.isSearing(spellID) or not B.talent() then return end
+  if unit ~= "player" then return end
+  if ns.issecret(spellID) and not B.saidSecretID then
+    B.saidSecretID = true
+    ns.dbg("BRAND own cast spell ID is secret here")
+  end
+  if not B.isSearing(spellID) or not B.talent() then return end
+  if not str(castGUID) then ns.dbg("BRAND cast ID not readable (" .. rawAnswer(tostring, castGUID) .. ")") end
   castGUID = str(castGUID)
   if not castGUID then return end
   local u, how = resolveDest(destName)
   if not u then ns.dbg("BRAND cast without a resolvable enemy") return end
   local p = { guid = ns.guidOf(u), tokens = tokensOf(u), t = ns.now() }
   B.pending[castGUID] = p
-  ns.dbg("BRAND cast at " .. u .. " (" .. how .. ") " .. describe(p))
+  ns.dbg("BRAND cast at " .. u .. " (" .. how .. ") " .. describe(p) .. string.format(
+    " | guid %s, is pettarget %s, is nameplate1 %s", rawAnswer(UnitGUID, u),
+    rawAnswer(UnitIsUnit, u, "pettarget"), rawAnswer(UnitIsUnit, u, "nameplate1")))
 end
 
 function B.onSucceeded(unit, castGUID, spellID)
@@ -325,17 +351,43 @@ function B.prune(t)
 end
 
 -- a running brand (or our Searing Pain on its way) on this unit?
+-- true / false, or nil = can't tell for at least one brand and no brand matched
 function B.branded(unit, t)
+  local unknown = false
   for _, b in ipairs(B.list) do
-    if b.expires > t and isSame(unit, b) then return true end
+    if b.expires > t then
+      local s = isSame(unit, b)
+      if s then return true end
+      if s == nil then unknown = true end
+    end
   end
+  if unknown then return nil end
   return false
 end
 function B.castingAt(unit)
+  local unknown = false
   for _, p in pairs(B.pending) do
-    if isSame(unit, p) then return true end
+    local s = isSame(unit, p)
+    if s then return true end
+    if s == nil then unknown = true end
   end
+  if unknown then return nil end
   return false
+end
+
+-- the pet's target, or (0.1.3) your own target when the game won't compare the pet's target with the
+-- branded enemy (raids, dungeons): the pet's Attack goes at your target, and so does your Searing Pain
+function B.petTargetState(t)
+  local br, casting = B.branded("pettarget", t), B.castingAt("pettarget")
+  if br == nil or casting == nil then
+    if not B.saidFallback then
+      B.saidFallback = true
+      ns.dbg("BRAND pet target can't be compared here: using your target instead")
+    end
+    if br == nil then br = B.branded("target", t) end
+    if casting == nil then casting = B.castingAt("target") end
+  end
+  return br and true or false, casting and true or false
 end
 
 -- is the pet fighting its target? attacking (see P.attackState) and the target is a living enemy
@@ -346,14 +398,31 @@ end
 function P.checkBrand(t)
   local c = ns.db.brand
   local want = c.on and ns.inCombat and B.talent() and P.petAttacking(t)
-    and not B.branded("pettarget", t) and not B.castingAt("pettarget")
+  if want then
+    local branded, casting = B.petTargetState(t)
+    want = not branded and not casting
+  end
   if want then
     B.since = B.since or t
     if t - B.since < (c.delay or 0) then want = false end
   else
     B.since = nil
   end
+  if want and not ns.Alert.active.brand then B.explain(t) end
   ns.Alert.set("brand", want and true or false)
+end
+
+-- 0.1.3: why the brand warning comes up: the pet's target against every running brand
+function B.explain(t)
+  local parts = { "pettarget guid " .. (ns.guidOf("pettarget") and ns.short(ns.guidOf("pettarget")) or rawAnswer(UnitGUID, "pettarget")) }
+  for i, b in ipairs(B.list) do
+    local r = {}
+    for tok in pairs(b.tokens) do r[#r + 1] = tok .. "=" .. rawAnswer(UnitIsUnit, "pettarget", tok) end
+    parts[#parts + 1] = string.format("brand%d %s %.1fs left: %s", i, b.guid and ns.short(b.guid) or "no guid",
+      b.expires - t, #r > 0 and table.concat(r, ",") or "no tokens")
+  end
+  if #B.list == 0 then parts[#parts + 1] = "no running brand" end
+  ns.dbg("BRAND why " .. table.concat(parts, " | "))
 end
 
 ---------------------------------------------------------------------------
@@ -450,6 +519,13 @@ function P.start()
   end)
   ns.on("NAME_PLATE_UNIT_ADDED", function(tok) B.retoken(tok) end)
   ns.on("NAME_PLATE_UNIT_REMOVED", function(tok) B.dropToken(tok) end)
+  ns.on("PLAYER_ENTERING_WORLD", function()
+    local ok, inside, kind = pcall(IsInInstance)
+    if ns.issecret(inside) then inside = "secret" end
+    if ns.issecret(kind) then kind = "secret" end
+    ns.dbg("ZONE instance " .. (ok and (tostring(inside) .. " " .. tostring(kind)) or "?"))
+    B.saidFallback = nil
+  end)
   for _, e in ipairs({ "PET_BAR_UPDATE", "PET_UI_UPDATE", "PET_ATTACK_START", "PET_ATTACK_STOP" }) do
     ns.on(e, function()
       if e == "PET_ATTACK_START" or e == "PET_ATTACK_STOP" then ns.dbg("ATTACK event " .. e) end

@@ -2,7 +2,7 @@
 ## Title: Warlock Pet & Proc Management
 ## Notes: Warlock pet warnings: your demon is not attacking in a fight, it attacks an enemy without your Demonic Brand, or its health is low. Custom text and sound. Proc alerts will follow.
 ## Notes-deDE: Hexenmeister-Begleiterwarnungen: dein Dämon greift im Kampf nicht an, greift einen Gegner ohne deine Demonic Brand an oder hat wenig Gesundheit. Eigener Text und Ton. Proc-Hinweise folgen.
-## Version: 0.1.2
+## Version: 0.1.3
 ## X-License: MIT
 ## X-Website: https://github.com/nkumnberlin/WarlockPetAndProcManagement
 ## SavedVariables: WarlockPetAndProcManagementDB
