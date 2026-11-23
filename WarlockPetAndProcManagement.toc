@@ -1,0 +1,15 @@
+## Interface: 16001
+## Title: Warlock Pet & Proc Management
+## Notes: Warlock pet warnings: your demon is on passive in a fight, or it attacks an enemy without your Demonic Brand. Custom text and sound. Proc alerts will follow.
+## Notes-deDE: Hexenmeister-Begleiterwarnungen: dein Dämon steht im Kampf auf Passiv oder greift einen Gegner ohne deine Demonic Brand an. Eigener Text und Ton. Proc-Hinweise folgen.
+## Version: 0.1.0
+## X-License: MIT
+## X-Website: https://github.com/nkumnberlin/WarlockPetAndProcManagement
+## SavedVariables: WarlockPetAndProcManagementDB
+
+Strings.lua
+Strings_deDE.lua
+Core.lua
+Alerts.lua
+Pet.lua
+Options.lua

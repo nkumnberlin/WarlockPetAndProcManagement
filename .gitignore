@@ -1,0 +1,13 @@
+# editor and OS files
+.DS_Store
+Thumbs.db
+*.bak
+*.swp
+.vscode/
+.idea/
+# never commit game logs / SavedVariables
+SavedVariables/
+logs/
+
+# local working notes, never commit (see AGENTS.md)
+local-notes.md

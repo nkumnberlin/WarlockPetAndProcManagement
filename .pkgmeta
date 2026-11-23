@@ -1,0 +1,11 @@
+# CurseForge packager: builds WarlockPetAndProcManagement.zip with one folder
+# "WarlockPetAndProcManagement" from every tagged commit (v0.1 = release, v1.0-beta = beta).
+package-as: WarlockPetAndProcManagement
+
+ignore:
+  - README.md
+  - AGENTS.md
+  - CLAUDE.md
+  - .gitignore
+  - .pkgmeta
+  - .github
