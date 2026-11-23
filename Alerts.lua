@@ -13,10 +13,13 @@ local L = ns.L
 local A = {}
 ns.Alert = A
 
-A.KINDS = { "idle", "brand" } -- top to bottom
+-- top to bottom; "hp" last: while pet health is hidden its line keeps its place even when the game
+-- hides it (see the gate below), so it must not push the others down
+A.KINDS = { "idle", "brand", "hp" }
 A.DEFAULT_TEXT = {
   idle = "Your pet is not attacking!",
   brand = "Pet attacks without %s!", -- %s = the talent's name from the game
+  hp = "{pet} is low on health!",
 }
 
 -- Demonic Brand in the client's language (spell names come from the game)
@@ -58,6 +61,10 @@ local FONT = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
 
 local function iconFor(kind)
   if kind == "idle" then return PET_ATTACK_TEXTURE or "Interface\\Icons\\Ability_GhoulFrenzy" end
+  if kind == "hp" then -- Health Funnel: the fix for a hurt demon
+    local t = C_Spell and C_Spell.GetSpellTexture and ns.plain(C_Spell.GetSpellTexture, 755)
+    return t or "Interface\\Icons\\Spell_Shadow_LifeDrain"
+  end
   local tex = C_Spell and C_Spell.GetSpellTexture and ns.plain(C_Spell.GetSpellTexture, 1293695)
   if not tex and C_Spell and C_Spell.GetSpellTexture then tex = ns.plain(C_Spell.GetSpellTexture, 5676) end
   return tex or "Interface\\Icons\\Spell_Fire_SoulBurn"
@@ -129,7 +136,71 @@ A.holder = holder
 A.lines = {}
 for _, kind in ipairs(A.KINDS) do A.lines[kind] = A.newLine(holder) end
 
-A.active = {}   -- kind -> { since, lastSound } while the condition holds
+---------------------------------------------------------------------------
+-- Gate for the low-health line (0.1.2). When the pet's health is a secret value in a fight, the addon
+-- can't compare it; the game has to. Same idea as DotWatch's kill skull (DoesItDie / Smooth Animated
+-- Bars, MIT): an invisible StatusBar GATE_W pixels wide gets range = max health and value = health (both
+-- secret, the bar accepts them). Its empty part starts at GATE_W * health% from the bar's left edge.
+-- The line's text and icons sit in a clip frame that covers only that empty part, and the bar is placed
+-- so that the threshold falls 600 px left of the line: health% <= threshold -> the empty part covers
+-- the line (visible); health% above it -> the empty part starts far to the right (clipped away).
+-- Nothing is read back. "Open" = range 1, tiny value: always visible (tests, readable health).
+---------------------------------------------------------------------------
+local GATE_W = 200000 -- px for 100 %: 1 % = 2000 px, more than any line is wide
+local function makeGate(line)
+  if not line.SetClipsChildren then return end
+  local ok, err = pcall(function()
+    local bar = CreateFrame("StatusBar", nil, line)
+    bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+    local fill = bar:GetStatusBarTexture()
+    fill:SetVertexColor(0, 0, 0, 0)
+    bar:SetMinMaxValues(0, 1)
+    bar:SetValue(0.000001)
+    bar:SetSize(GATE_W, 10)
+    local clip = CreateFrame("Frame", nil, line)
+    clip:SetClipsChildren(true)
+    clip:SetPoint("TOPLEFT", fill, "TOPRIGHT", 0, 0)
+    clip:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 0, 0)
+    line.fs:SetParent(clip)
+    line.icon:SetParent(clip)
+    line.icon2:SetParent(clip)
+    line.gate = { bar = bar, clip = clip }
+  end)
+  if not ok then A.gateErr = tostring(err) end -- logged once the saved variables are loaded
+end
+makeGate(A.lines.hp)
+
+local function placeGate(line, kind, h)
+  local g = line.gate
+  if not g then return end
+  local th = (ns.db[kind].threshold or 30) / 100
+  g.bar:ClearAllPoints()
+  g.bar:SetPoint("TOPLEFT", line, "TOPLEFT", -600 - GATE_W * th, 0)
+  g.bar:SetHeight(h)
+end
+function A.gateOpen(kind)
+  local g = A.lines[kind].gate
+  if g and not g.open then
+    g.bar:SetMinMaxValues(0, 1)
+    g.bar:SetValue(0.000001)
+    g.open = true
+  end
+end
+-- cur/max may be secret: only handed to the bar. Returns false when there is no gate (warning can't show).
+function A.gateFeed(kind, cur, max)
+  local g = A.lines[kind].gate
+  if not g then return false end
+  if not ns.db.locked or (A.testUntil[kind] and A.testUntil[kind] > ns.now()) then
+    A.gateOpen(kind) -- a test or move mode shows the line
+    return true
+  end
+  local ok = pcall(g.bar.SetMinMaxValues, g.bar, 0, max)
+  ok = ok and pcall(g.bar.SetValue, g.bar, cur)
+  g.open = nil
+  return ok
+end
+
+A.active = {}   -- kind -> { since, lastSound, quiet } while the condition holds
 A.testUntil = {} -- kind -> time a test display ends
 
 local function uiSize()
@@ -164,6 +235,8 @@ function A.layout()
     local line = A.lines[kind]
     if shouldShow(kind, t) then
       local h = A.paint(line, kind)
+      placeGate(line, kind, h)
+      if not ns.db.locked or (A.testUntil[kind] and A.testUntil[kind] > t) then A.gateOpen(kind) end
       line:ClearAllPoints()
       line:SetPoint("TOPLEFT", holder, "TOPLEFT", 0, -y)
       line:SetPoint("TOPRIGHT", holder, "TOPRIGHT", 0, -y)
@@ -179,14 +252,19 @@ function A.layout()
 end
 A.refresh = A.layout
 
--- a warning starts (sound) or ends
-function A.set(kind, on)
+-- a warning starts (sound) or ends. quiet = the game decides whether it is visible (hidden pet health):
+-- the addon doesn't know when it shows, so no sound
+function A.set(kind, on, quiet)
   local a = A.active[kind]
+  if on and a and (a.quiet or false) ~= (quiet or false) then
+    a.quiet = quiet
+    ns.dbg("ALERT " .. kind .. (quiet and " now decided by the game" or " now decided by the addon"))
+  end
   if on and not a then
     local t = ns.now()
-    A.active[kind] = { since = t, lastSound = t }
-    if ns.db[kind].sound then A.playSound(ns.db[kind].soundKey) end
-    ns.dbg("ALERT " .. kind .. " on")
+    A.active[kind] = { since = t, lastSound = t, quiet = quiet }
+    if ns.db[kind].sound and not quiet then A.playSound(ns.db[kind].soundKey) end
+    ns.dbg("ALERT " .. kind .. " on" .. (quiet and " (game decides, no sound)" or ""))
     A.layout()
   elseif not on and a then
     A.active[kind] = nil
@@ -224,7 +302,7 @@ holder:SetScript("OnUpdate", function()
     end
     local a = A.active[kind]
     local c = ns.db[kind]
-    if a and c.sound and (c.repeatSec or 0) > 0 and t - a.lastSound >= c.repeatSec then
+    if a and not a.quiet and c.sound and (c.repeatSec or 0) > 0 and t - a.lastSound >= c.repeatSec then
       a.lastSound = t
       A.playSound(c.soundKey)
     end
@@ -327,6 +405,7 @@ end
 
 table.insert(ns.hooks.ready, function()
   lockBtn:SetText(L["Lock"])
+  if A.gateErr then ns.dbg("GATE not available: " .. A.gateErr) end
   tabText:SetText(L["Move mode: drag me"])
   A.applyPosition()
   moveParts(not ns.db.locked)

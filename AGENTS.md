@@ -29,6 +29,7 @@ Unlike DotWatch this addon is **warlock-only by design**: on other classes it lo
 
 - **Pet mode:** `GetPetActionInfo(slot)` → token `PET_MODE_PASSIVE` with `isActive`. Some clients put a subtext before the texture, then `isActive` is one position further (handled in `P.readPassive`). Forever's modes: `PET_MODE_PASSIVE`, `PET_MODE_DEFENSIVEASSIST`, `PET_MODE_ASSIST`. Events: `PET_BAR_UPDATE`, `PET_UI_UPDATE`, `UNIT_PET`. ⚠️ Not yet confirmed in our own log whether it stays readable in combat; a secret/unreadable answer keeps the last known state (`PASSIVE` debug lines).
 - **Pet attacking (0.1.1):** Nico keeps his pet on Passive on purpose and sends it in with Attack, so the warning is "pet not attacking", not "pet on passive". Signals: `IsPetAttackActive()` (+ `PET_ATTACK_START/STOP`), a pet `UNIT_SPELLCAST_SUCCEEDED` in the last 3 s (Imp Firebolt); if the attack state is unreadable, a living enemy as `pettarget` counts. ⚠️ Not yet confirmed on Forever whether `IsPetAttackActive` is plain in combat and true for the Imp (`ATTACK` debug lines say which signal answered).
+- **Pet health (0.1.2):** ⚠️ not known yet whether `UnitHealth("pet")` is secret in fights on Forever (enemy health is). Readable → compared in `P.checkHP` (threshold, 3 % hysteresis, sound). Secret → the "hp" line sits in a clip frame over the empty part of an invisible 200,000 px StatusBar fed with the secret health (the kill-skull idea from DotWatch), so the game decides visibility; no sound, the line keeps its slot (it is the last kind). `HP readable` / `HP secret` debug lines.
 - **Talents:** the classic talent API is missing on Forever. `IsPlayerSpell(1293695)` = Demonic Brand learned (DotProbe 0.7).
 - **Demonic Brand** (Demonology talent, 3 ranks): Searing Pain brands the enemy for **10 s**; rank 3 = the pet's next **6** attacks deal bonus fire/shadow damage. It is a **debuff on the enemy**, `UNIT_AURA added` in the same frame as Searing Pain's SUCCEEDED; **not readable in combat**. It ran out at ~10 s in the probe; an early end by used-up charges was likely but not proven.
 - **Resist:** a failed cast gets `UNIT_COMBAT` MISS/RESIST/IMMUNE/EVADE on that enemy in the same frame (≤ 0.02 s) and no `UNIT_AURA added`.
@@ -45,13 +46,13 @@ Unlike DotWatch this addon is **warlock-only by design**: on other classes it lo
 | `WarlockPetAndProcManagement.toc` | load order: Strings → Strings_deDE → Core → Alerts → Pet → Options |
 | `Strings.lua`, `Strings_deDE.lua` | `ns.L` (English keys, frozen at ADDON_LOADED), German texts |
 | `Core.lua` | helpers (`ns.plain/str/num`), defaults, event hub `ns.on`, hooks `ready`/`login`, debug log, `/wpm` |
-| `Alerts.lua` | `ns.Alert`: on-screen warning lines (text, size, color, icon, pulse), sounds, move mode, test |
-| `Pet.lua` | `ns.Pet`: pet-not-attacking check (`P.attackState`), Demonic Brand tracking (`P.brand`), 0.2 s ticker |
+| `Alerts.lua` | `ns.Alert`: on-screen warning lines (text, size, color, icon, pulse), sounds, move mode, test, the secret-health gate |
+| `Pet.lua` | `ns.Pet`: pet-not-attacking check (`P.attackState`), Demonic Brand tracking (`P.brand`), low pet health (`P.checkHP`), 0.2 s ticker |
 | `Options.lua` | `ns.Options`: options window (700 × 520, nav left), AddOns settings entry, minimap button |
 
-- SavedVariables `WarlockPetAndProcManagementDB`: `locked`, `pos = {x, y}` (top center of the warnings), `lang`, `debugChat`, `minimap`, `idle{...}` (pet not attacking; was `passive` in 0.1.0, migrated on load), `brand{...}`, `debug` (last 500 lines) + `debugPrev`.
+- SavedVariables `WarlockPetAndProcManagementDB`: `locked`, `pos = {x, y}` (top center of the warnings), `lang`, `debugChat`, `minimap`, `idle{...}` (pet not attacking; was `passive` in 0.1.0, migrated on load), `brand{...}`, `hp{...}` (+ `threshold`, `ooc`), `debug` (last 500 lines) + `debugPrev`.
 - Per-warning settings: `on, text (nil = default), size, color, icon, pulse, sound, soundKey, repeatSec, delay`; brand also `charges` (experimental, off by default).
-- Debug tags: LOAD, LOGIN, PET, ATTACK, ALERT, BRAND, TALENT, SETTINGS, ERROR.
+- Debug tags: LOAD, LOGIN, PET, ATTACK, HP, GATE, ALERT, BRAND, TALENT, SETTINGS, ERROR.
 - Proc management will get its own file (`Procs.lua`), its own warning kinds in `Alert.KINDS` and its own nav group.
 
 ---
@@ -59,7 +60,7 @@ Unlike DotWatch this addon is **warlock-only by design**: on other classes it lo
 ## 4. Checks before a commit
 
 - Compile every file with LuaJIT (`loadstring`).
-- Mock run with a stubbed WoW API (pet attacking or idle in and out of combat, settings migration, brand start/expiry/resist, secret GUIDs, options window).
+- Mock run with a stubbed WoW API (pet attacking or idle in and out of combat, settings migration, pet health readable and secret, brand start/expiry/resist, secret GUIDs, options window).
 - Same keys in every language, every key used, `%s/%d` identical.
 
 ---

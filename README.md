@@ -2,7 +2,7 @@
 
 A warlock addon for **World of Warcraft: Forever**. It watches your demon and warns you on screen (with an optional sound) when something is wrong. Proc management comes in a later version.
 
-## Features (v0.1.1)
+## Features (v0.1.2)
 
 **Pet not attacking**
 - In a fight, when your pet is alive but **not attacking** – e.g. it is on Passive and you haven't sent it in yet, or its target died – a warning appears in the middle of the screen.
@@ -15,6 +15,11 @@ A warlock addon for **World of Warcraft: Forever**. It watches your demon and wa
 - Works in dungeons too (enemies are told apart by target, focus, pet target and nameplates).
 - *Experimental, off by default:* count the pet's 6 empowered attacks and end the brand early when they are used up.
 
+**Low pet health**
+- A warning when your pet's health is at or below a value you set with a slider (default 30 %). It goes away when the pet is healed (3 % above the value) or gone.
+- In fights by default; tick "Also out of combat" to be warned before the next pull too.
+- If the game hides the pet's health in a fight, the game itself decides when the warning shows (no sound then).
+
 **For every warning**
 - Your own message (`{pet}` = your pet's name), text size, color, icon, pulse.
 - Optional sound (10 game sounds, soft to loud), played once or repeated every few seconds.
@@ -25,7 +30,7 @@ A warlock addon for **World of Warcraft: Forever**. It watches your demon and wa
 - `/wpm` – options (also the minimap button or Escape › Options › AddOns)
 - `/wpm test` – show the warnings for 5 seconds
 - `/wpm unlock` / `/wpm lock` – move the warnings
-- `/wpm status` – pet, pet mode, attacking or not, talent, running brands
+- `/wpm status` – pet, pet mode, attacking or not, pet health, talent, running brands
 - `/wpm help` – all commands
 
 Languages: English, German.

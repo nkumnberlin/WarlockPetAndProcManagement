@@ -378,6 +378,28 @@ local function buildBrandPage(pg)
   makePreview(pg, "brand", -336)
 end
 
+-- 0.1.2: low pet health with its threshold slider
+local function buildHPPage(pg)
+  buildAlertPage(pg, "hp", "Low pet health", "Warn when my pet's health is low",
+    "The warning comes up while your pet's health is at or below the value you set, and goes away when it is healed (3 % above the value) or the pet is gone. If the game hides the pet's health in a fight, the game itself decides when the warning shows; then it comes without a sound.")
+  makeSection(pg, "Health", -244, COL2)
+  local s = makeSlider(pg, "Warn at or below", 5, 80, 5, function(v) return string.format("%d %%", v) end,
+    function() return ns.db.hp.threshold end, function(v) ns.db.hp.threshold = v end, 150)
+  s:SetPoint("TOPLEFT", COL2 + 6, -282)
+  tip(s, "Warn at or below", "Pet health in percent of its maximum.")
+  makeCheck(pg, "Also out of combat", "Also warn outside of fights, e.g. before the next pull.",
+    function() return ns.db.hp.ooc end, function(v) ns.db.hp.ooc = v if ns.Pet then ns.Pet.update() end end)
+    :SetPoint("TOPLEFT", 26, -290)
+  O.hpLine = smallText(pg)
+  O.hpLine:SetPoint("TOPLEFT", 54, -98)
+  makePreview(pg, "hp", -336)
+  local acc = 0
+  pg:SetScript("OnUpdate", function(_, e)
+    acc = acc + e
+    if acc > 0.5 then acc = 0 O.refreshStatus() end
+  end)
+end
+
 ---------------------------------------------------------------------------
 -- General page
 ---------------------------------------------------------------------------
@@ -456,7 +478,8 @@ function O.refreshStatus()
       L["Class"] .. ": " .. (ns.isWarlock and (yes .. L["Warlock"] .. "|r") or (no .. L["not a warlock (addon idle)"] .. "|r")),
       L["Pet"] .. ": " .. (pet and (yes .. pet .. "|r") or (no .. L["none"] .. "|r")) ..
         (pet and ("   " .. L["Mode"] .. ": " .. (P.modeName() or "?") .. "   " .. L["Attacking"] .. ": " ..
-          ((P.attackState(GetTime())) and (yes .. L["yes"] .. "|r") or (no .. L["no"] .. "|r"))) or ""),
+          ((P.attackState(GetTime())) and (yes .. L["yes"] .. "|r") or (no .. L["no"] .. "|r")) ..
+          "   " .. L["Health"] .. ": " .. P.hpText()) or ""),
       string.format(L["%s talent"], ns.brandName()) .. ": " .. (P.brand.talent() and (yes .. L["learned"] .. "|r") or (no .. L["not learned (no brand warning)"] .. "|r")),
     }
     O.status:SetText(table.concat(lines, "\n"))
@@ -464,6 +487,16 @@ function O.refreshStatus()
   if O.talentLine and P then
     O.talentLine:SetText(P.brand.talent() and ("|cff55ff55" .. L["Talent learned."] .. "|r")
       or ("|cffff5555" .. L["Talent not learned: this warning stays off."] .. "|r"))
+  end
+  if O.hpLine and P then
+    local txt = P.hpText()
+    if txt == L["hidden by the game"] then
+      O.hpLine:SetText("|cffffd100" .. L["Pet health is hidden by the game now: warning without sound."] .. "|r")
+    elseif txt == "-" then
+      O.hpLine:SetText("|cff888888" .. L["No pet out."] .. "|r")
+    else
+      O.hpLine:SetText(string.format(L["Pet health now: %s"], txt))
+    end
   end
 end
 
@@ -543,7 +576,7 @@ local function buildOptions()
   sub:SetText(L["Pet and proc warnings for warlocks."] .. "  |cff888888v" .. ns.VERSION .. "|r")
 
   local pages = {}
-  for i = 1, 3 do
+  for i = 1, 4 do
     local pg = CreateFrame("Frame", nil, f)
     pg:SetPoint("TOPLEFT", NAV_W, 0)
     pg:SetPoint("BOTTOMRIGHT", 0, 50)
@@ -553,6 +586,7 @@ local function buildOptions()
   buildGeneralPage(pages[1])
   buildIdlePage(pages[2])
   buildBrandPage(pages[3])
+  buildHPPage(pages[4])
 
   -- navigation list on the left; "Pet management" groups its pages (procs will get their own group)
   local navBg = CreateFrame("Frame", nil, f, BACKDROP_TEMPLATE)
@@ -576,7 +610,7 @@ local function buildOptions()
     f.page = i
   end
   local NAV = { { 1, "General" }, { nil, "Pet management" }, { 2, "Pet not attacking", sub = true },
-    { 3, ns.brandName(), sub = true } }
+    { 3, ns.brandName(), sub = true }, { 4, "Low pet health", sub = true } }
   for pos, entry in ipairs(NAV) do
     local i, label = entry[1], entry[2]
     if not i then

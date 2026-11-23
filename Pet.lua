@@ -365,6 +365,53 @@ function P.update()
   B.prune(t)
   P.checkIdle(t)
   P.checkBrand(t)
+  P.checkHP()
+end
+
+---------------------------------------------------------------------------
+-- 3. Low pet health (0.1.2): the pet is alive and at or below the threshold (in a fight, or also out of
+--    combat when ticked). Readable health: compared here, with sound; back off only 3 % above the
+--    threshold so it doesn't flicker. Secret health (not known yet whether Forever hides the pet's
+--    health in fights): the game compares inside the line's gate (Alerts.lua), no sound. HP lines in the
+--    debug log say which way it went.
+---------------------------------------------------------------------------
+P.HP_HYST = 3
+
+-- for the status: "54%", "hidden by the game" or "-" (no pet)
+function P.hpText()
+  if not P.hasPet() then return "-" end
+  local cur, max = plain(UnitHealth, "pet"), plain(UnitHealthMax, "pet")
+  if type(cur) == "number" and type(max) == "number" and max > 0 then
+    return string.format("%d%%", math.floor(cur / max * 100 + 0.5))
+  end
+  return L["hidden by the game"]
+end
+
+function P.checkHP()
+  local c = ns.db.hp
+  if not (c.on and P.hasPet() and (ns.inCombat or c.ooc)) then
+    P.hpLow = false
+    ns.Alert.set("hp", false)
+    return
+  end
+  local cur, max = plain(UnitHealth, "pet"), plain(UnitHealthMax, "pet")
+  if type(cur) == "number" and type(max) == "number" and max > 0 then
+    if P.hpMode ~= "plain" then ns.dbg("HP readable") P.hpMode = "plain" end
+    local pct = cur / max * 100
+    P.hpPct = pct
+    local th = c.threshold or 30
+    P.hpLow = (pct <= th) or (P.hpLow and pct <= th + P.HP_HYST) or false
+    ns.Alert.gateOpen("hp")
+    ns.Alert.set("hp", P.hpLow)
+  else
+    if P.hpMode ~= "secret" then ns.dbg("HP secret: the game compares, no sound") P.hpMode = "secret" end
+    P.hpPct, P.hpLow = nil, nil
+    -- secret values go straight to the gate's bar, never into a variable that outlives this call
+    local okC, cur2 = pcall(UnitHealth, "pet")
+    local okM, max2 = pcall(UnitHealthMax, "pet")
+    local shown = okC and okM and ns.Alert.gateFeed("hp", cur2, max2) or false
+    ns.Alert.set("hp", shown, true)
+  end
 end
 
 function P.status()
@@ -373,6 +420,7 @@ function P.status()
   ns.say(string.format(L["Pet: %s, mode: %s"], P.hasPet() and (str(plain(UnitName, "pet")) or "?") or L["none"],
     P.modeName() or "?"))
   ns.say(string.format(L["Pet attacking: %s (%s)"], att and L["yes"] or L["no"], how))
+  ns.say(string.format(L["Pet health: %s"], P.hpText()))
   ns.say(string.format(L["%s talent: %s, running brands: %d"], ns.brandName(),
     B.talent() and L["learned"] or L["not learned"], #B.list))
   for _, b in ipairs(B.list) do
@@ -420,7 +468,11 @@ function P.start()
     ns.Alert.set("brand", false)
     B.since = nil
     P.idleSince = nil
+    P.checkHP() -- stays only with "also out of combat"
   end)
+  for _, e in ipairs({ "UNIT_HEALTH", "UNIT_MAXHEALTH" }) do
+    ns.on(e, function(unit) if unit == "pet" then P.checkHP() end end)
+  end
   for _, e in ipairs({ "SPELLS_CHANGED", "PLAYER_TALENT_UPDATE", "CHARACTER_POINTS_CHANGED", "TRAIT_CONFIG_UPDATED" }) do
     ns.on(e, B.rescanTalent)
   end
