@@ -37,6 +37,7 @@ Unlike DotWatch this addon is **warlock-only by design**: on other classes it lo
 - **Pet casts** are readable (`UNIT_SPELLCAST_SUCCEEDED` for `pet`, with spell ID).
 - **Instances (confirmed by Nico's dungeon log, 2026-11-23):** enemy names/GUIDs are secret; `UnitIsUnit` matched `target` with nameplates, but `pettarget` never matched the branded enemy. So since 0.1.4 the brand check uses a **time rule** whenever the pet's target has no readable GUID: any brand applied in the last 10 s (or a Searing Pain on its way) counts; brands are kept until their 10 s end even when their enemy can't be followed. Known limit: a brand on another enemy also counts there. Open world stays per enemy (GUIDs). **Pet health is secret in fights** there too (`HP secret`) → the low-health warning runs through the gate, without sound.
 - **Game aura engine (0.2.0):** `CreateFrame("AuraContainer", nil, parent, "CustomAuraContainerTemplate, DisableUntrustedLayoutScriptsTemplate")`, `AddAuraGroup(key, "HARMFUL|PLAYER", {candidateFilters = {includeSpellIDs = {[id] = true}}, maxFrameCount = 1, layout = {elementWidth, elementHeight}, initializeFrame})`, `SetUnit("pettarget")`, `SetEnabled(true)`, `UpdateAllAuras()` (no aura events for pettarget: refreshed on UNIT_TARGET pet, any UNIT_AURA while the line is up, every 0.4 s). The brand line's text sits in a clip from the container's right edge to the line's right edge: the container is only wide while our brand is on the pet's target, so the game hides the line then (idea from ForeverAuras' "Aura(s) Missing", SecretAuraSingle.lua). The addon can't know whether it shows: the line is up "quiet" while a brand of the last 10 s exists, with sound only when none does. **Confirmed in game (Nico, dungeon, 2026-11-23):** the engine follows `pettarget`, debuff ID **1293696** is the brand on the enemy, and the line disappears while the brand is on the pet's target. The container's width reads 0 once, then is secret (the addon can't learn presence from it). Same log: `UnitIsUnit("pettarget", "target")` is secret, `UnitIsUnit(<enemy>, "nameplateN")` vs pettarget is nil. `/wpm brandid <id>` stays for testing. `ENGINE` and `BRAND why ... engine ..., width ...` debug lines.
+- **Decimation (0.3.0)** (Demonology talent, tier 4, 2 ranks; foreverchanges.pro build 1.60.1.71037 + Wowhead Forever): Shadow Bolt or Searing Pain on an enemy **below 35 %** → for **10 s** Soul Fire casts 20 % / 40 % faster and costs no Soul Shard; the talent also cuts Soul Fire's cooldown 45 % / 90 % and gives SB/SP 3 % / 6 % damage there. Spell **440870** = the talent's passive (hidden aura, same name as the proc; rank values in one trait node). Soul Fire IDs 6353 / 17924. ⚠️ Not known: the **proc buff's spell ID** (on no site), whether your own buffs read in combat, whether the client's spell info shows the faster cast time (the reduction is a server-side dummy effect on Wowhead), whether Soul Fire glows. So `Procs.lua` asks three signals: the buff (by name out of combat, skipping 440870; then by learned ID → `db.learned.deciBuff`), the Soul Fire glow (overlay events + `IsSpellOverlayed`), Soul Fire's cast time ÷ Searing Pain's (haste-free) under 90 % of the highest seen. A readable buff decides alone. Enemy health is secret, so "below 35 %" is never checked by the addon. `PROC` debug lines say which signal answered and how long after SB/SP.
 
 ---
 
@@ -44,24 +45,25 @@ Unlike DotWatch this addon is **warlock-only by design**: on other classes it lo
 
 | File | What |
 |---|---|
-| `WarlockPetAndProcManagement.toc` | load order: Strings → Strings_deDE → Core → Alerts → Pet → Options |
+| `WarlockPetAndProcManagement.toc` | load order: Strings → Strings_deDE → Core → Alerts → Pet → Procs → Options |
 | `Strings.lua`, `Strings_deDE.lua` | `ns.L` (English keys, frozen at ADDON_LOADED), German texts |
 | `Core.lua` | helpers (`ns.plain/str/num`), defaults, event hub `ns.on`, hooks `ready`/`login`, debug log, `/wpm` |
 | `Alerts.lua` | `ns.Alert`: on-screen warning lines (text, size, color, icon, pulse), sounds, move mode, test, the secret-health gate |
 | `Pet.lua` | `ns.Pet`: pet-not-attacking check (`P.attackState`), Demonic Brand tracking (`P.brand`), low pet health (`P.checkHP`), 0.2 s ticker |
-| `Options.lua` | `ns.Options`: options window (700 × 520, nav left), AddOns settings entry, minimap button |
+| `Procs.lua` | `ns.Procs`: Decimation proc (`R.deci`: buff / glow / cast-time signals, `D.check`), 0.2 s ticker |
+| `Options.lua` | `ns.Options`: options window (700 × 520, nav left: General, Pet management, Proc management), AddOns settings entry, minimap button |
 
-- SavedVariables `WarlockPetAndProcManagementDB`: `locked`, `pos = {x, y}` (top center of the warnings), `lang`, `debugChat`, `minimap`, `idle{...}` (pet not attacking; was `passive` in 0.1.0, migrated on load), `brand{...}`, `hp{...}` (+ `threshold`, `ooc`), `debug` (last 500 lines) + `debugPrev`.
+- SavedVariables `WarlockPetAndProcManagementDB`: `locked`, `pos = {x, y}` (top center of the warnings), `lang`, `debugChat`, `minimap`, `idle{...}` (pet not attacking; was `passive` in 0.1.0, migrated on load), `brand{...}`, `hp{...}` (+ `threshold`, `ooc`), `deci{...}` (0.3.0), `learned{deciBuff}` (spell IDs found in game; survives `/wpm reset`), `debug` (last 500 lines) + `debugPrev`.
 - Per-warning settings: `on, text (nil = default), size, color, icon, pulse, sound, soundKey, repeatSec, delay`; brand also `charges`, `engine` (0.2.0, default on), `debuffID` (nil = 1293696) (experimental, off by default).
-- Debug tags: LOAD, LOGIN, PET, ATTACK, HP, GATE, ENGINE, ZONE, ALERT, BRAND, TALENT, SETTINGS, ERROR.
-- Proc management will get its own file (`Procs.lua`), its own warning kinds in `Alert.KINDS` and its own nav group.
+- Debug tags: LOAD, LOGIN, PET, ATTACK, HP, GATE, ENGINE, ZONE, ALERT, BRAND, PROC, TALENT, SETTINGS, ERROR.
+- Warning kinds top to bottom: `idle`, `brand`, `deci`, `hp` (`hp` last: its gated line keeps its slot). New procs go into `Procs.lua`, `Alert.KINDS` before `hp` and the "Proc management" nav group.
 
 ---
 
 ## 4. Checks before a commit
 
 - Compile every file with LuaJIT (`loadstring`).
-- Mock run with a stubbed WoW API (pet attacking or idle in and out of combat, settings migration, pet health readable and secret, brand start/expiry/resist, secret GUIDs, options window).
+- Mock run with a stubbed WoW API (pet attacking or idle in and out of combat, settings migration, pet health readable and secret, brand start/expiry/resist, secret GUIDs, options window; Decimation by cast time, haste, glow, buff learned after a fight, buff readable/unreadable in combat).
 - Same keys in every language, every key used, `%s/%d` identical.
 
 ---

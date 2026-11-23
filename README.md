@@ -1,8 +1,8 @@
 # Warlock Pet & Proc Management
 
-A warlock addon for **World of Warcraft: Forever**. It watches your demon and warns you on screen (with an optional sound) when something is wrong. Proc management comes in a later version.
+A warlock addon for **World of Warcraft: Forever**. It watches your demon and warns you on screen (with an optional sound) when something is wrong, and tells you when a proc is up.
 
-## Features (v0.2.0)
+## Features (v0.3.0)
 
 **Pet not attacking**
 - In a fight, when your pet is alive but **not attacking** – e.g. it is on Passive and you haven't sent it in yet, or its target died – a warning appears in the middle of the screen.
@@ -20,6 +20,10 @@ A warlock addon for **World of Warcraft: Forever**. It watches your demon and wa
 - In fights by default; tick "Also out of combat" to be warned before the next pull too.
 - If the game hides the pet's health in a fight, the game itself decides when the warning shows (no sound then).
 
+**Decimation proc** (Demonology talent, new in v0.3.0)
+- When your Shadow Bolt or Searing Pain on an enemy below 35 % health triggers Decimation, a warning shows "Decimation: Soul Fire now!" for as long as the proc is up (10 seconds: faster Soul Fire, no Soul Shard).
+- The addon sees the proc by your Soul Fire's shorter cast time, the game's glow on Soul Fire, or the buff itself where the game lets addons read it. It learns the buff's spell ID the first time it can read it.
+
 **For every warning**
 - Your own message (`{pet}` = your pet's name), text size, color, icon, pulse.
 - Optional sound (10 game sounds, soft to loud), played once or repeated every few seconds.
@@ -30,7 +34,7 @@ A warlock addon for **World of Warcraft: Forever**. It watches your demon and wa
 - `/wpm` – options (also the minimap button or Escape › Options › AddOns)
 - `/wpm test` – show the warnings for 5 seconds
 - `/wpm unlock` / `/wpm lock` – move the warnings
-- `/wpm status` – pet, pet mode, attacking or not, pet health, talent, running brands
+- `/wpm status` – pet, pet mode, attacking or not, pet health, talents, running brands, Decimation
 - `/wpm help` – all commands
 
 Languages: English, German.

@@ -317,6 +317,7 @@ local function buildAlertPage(pg, kind, title, enableLabel, enableHelp)
   makeCheck(pg, enableLabel, enableHelp, function() return c().on end, function(v)
     c().on = v
     if ns.Pet then ns.Pet.update() end
+    if ns.Procs then ns.Procs.update() end
   end):SetPoint("TOPLEFT", 26, -74)
 
   -- left column: message and look
@@ -330,6 +331,7 @@ local function buildAlertPage(pg, kind, title, enableLabel, enableHelp)
   local hint = smallText(pg, "GameFontDisableSmall")
   hint:SetPoint("LEFT", def, "RIGHT", 8, 0)
   hint:SetText(L["{pet} = your pet's name"])
+  hint:SetShown(kind ~= "deci")
   makeSlider(pg, "Text size", 14, 48, 1, "%d", function() return c().size end,
     function(v) c().size = v end, 200):SetPoint("TOPLEFT", 30, -204)
   makeSwatch(pg, "Text color", function() return c().color end, function(v) c().color = v end)
@@ -404,6 +406,21 @@ local function buildHPPage(pg)
   end)
 end
 
+-- 0.3.0: Decimation proc (Procs.lua)
+local function buildDeciPage(pg)
+  buildAlertPage(pg, "deci", ns.deciName(), "Warn when Decimation is up",
+    "Demonology talent: your Shadow Bolt or Searing Pain on an enemy below 35 % health makes your Soul Fire faster and free of Soul Shards for 10 sec. The warning shows while that is up. The addon sees it by your Soul Fire's shorter cast time, the game's glow on Soul Fire, or the buff itself where the game lets it be read.")
+  O.deciLine = smallText(pg)
+  O.deciLine:SetPoint("TOPLEFT", 54, -98)
+  O.deciLine:SetPoint("RIGHT", pg, "RIGHT", -28, 0)
+  makePreview(pg, "deci", -300)
+  local acc = 0
+  pg:SetScript("OnUpdate", function(_, e)
+    acc = acc + e
+    if acc > 0.5 then acc = 0 O.refreshStatus() end
+  end)
+end
+
 ---------------------------------------------------------------------------
 -- General page
 ---------------------------------------------------------------------------
@@ -463,7 +480,7 @@ local function buildGeneralPage(pg)
   local later = smallText(pg, "GameFontDisableSmall")
   later:SetPoint("TOPLEFT", 30, y)
   later:SetPoint("RIGHT", pg, "RIGHT", -28, 0)
-  later:SetText(L["Proc management (alerts for your warlock procs) comes in a later version."])
+  later:SetText(L["More proc alerts come in later versions."])
 
   -- status refresh while the page is open
   local acc = 0
@@ -486,12 +503,19 @@ function O.refreshStatus()
           "   " .. L["Health"] .. ": " .. P.hpText()) or ""),
       string.format(L["%s talent"], ns.brandName()) .. ": " .. (P.brand.talent() and (yes .. L["learned"] .. "|r") or (no .. L["not learned (no brand warning)"] .. "|r")),
     }
+    if ns.Procs then
+      lines[#lines + 1] = string.format(L["%s talent"], ns.deciName()) .. ": " ..
+        (ns.Procs.deci.talent() and (yes .. L["learned"] .. "|r") or (no .. L["not learned"] .. "|r"))
+    end
     O.status:SetText(table.concat(lines, "\n"))
   end
   if O.talentLine and P then
     O.talentLine:SetText((P.brand.talent() and ("|cff55ff55" .. L["Talent learned."] .. "|r")
       or ("|cffff5555" .. L["Talent not learned: this warning stays off."] .. "|r")) .. "  |cff888888" ..
       (ns.Alert.engineReady() and L["Game check available."] or L["Game check not available: 10 sec rule."]) .. "|r")
+  end
+  if O.deciLine and ns.Procs then
+    O.deciLine:SetText("|cffbbbbbb" .. ns.Procs.statusText() .. "|r")
   end
   if O.hpLine and P then
     local txt = P.hpText()
@@ -581,7 +605,7 @@ local function buildOptions()
   sub:SetText(L["Pet and proc warnings for warlocks."] .. "  |cff888888v" .. ns.VERSION .. "|r")
 
   local pages = {}
-  for i = 1, 4 do
+  for i = 1, 5 do
     local pg = CreateFrame("Frame", nil, f)
     pg:SetPoint("TOPLEFT", NAV_W, 0)
     pg:SetPoint("BOTTOMRIGHT", 0, 50)
@@ -592,8 +616,9 @@ local function buildOptions()
   buildIdlePage(pages[2])
   buildBrandPage(pages[3])
   buildHPPage(pages[4])
+  buildDeciPage(pages[5])
 
-  -- navigation list on the left; "Pet management" groups its pages (procs will get their own group)
+  -- navigation list on the left; "Pet management" and "Proc management" group their pages
   local navBg = CreateFrame("Frame", nil, f, BACKDROP_TEMPLATE)
   navBg:SetPoint("TOPLEFT", 16, -50)
   navBg:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", NAV_W - 6, 50)
@@ -615,7 +640,8 @@ local function buildOptions()
     f.page = i
   end
   local NAV = { { 1, "General" }, { nil, "Pet management" }, { 2, "Pet not attacking", sub = true },
-    { 3, ns.brandName(), sub = true }, { 4, "Low pet health", sub = true } }
+    { 3, ns.brandName(), sub = true }, { 4, "Low pet health", sub = true },
+    { nil, "Proc management" }, { 5, ns.deciName(), sub = true } }
   for pos, entry in ipairs(NAV) do
     local i, label = entry[1], entry[2]
     if not i then

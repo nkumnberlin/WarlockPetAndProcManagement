@@ -1,6 +1,7 @@
 -- Warlock Pet & Proc Management: on-screen warnings and sounds.
 --
--- One holder frame near the screen center carries one line per warning kind ("idle" = pet not attacking, "brand"),
+-- One holder frame near the screen center carries one line per warning kind ("idle" = pet not attacking, "brand",
+-- "deci" = Decimation proc, "hp"),
 -- stacked top to bottom in that order; only the active ones take space. Each line: optional icon +
 -- the player's own message in their size and color, optionally pulsing. A sound plays when a warning
 -- comes up and, if wanted, again every few seconds while it stays.
@@ -15,11 +16,12 @@ ns.Alert = A
 
 -- top to bottom; "hp" last: while pet health is hidden its line keeps its place even when the game
 -- hides it (see the gate below), so it must not push the others down
-A.KINDS = { "idle", "brand", "hp" }
+A.KINDS = { "idle", "brand", "deci", "hp" }
 A.DEFAULT_TEXT = {
   idle = "Your pet is not attacking!",
   brand = "Pet attacks without %s!", -- %s = the talent's name from the game
   hp = "{pet} is low on health!",
+  deci = "%s: %s now!", -- 0.3.0: Decimation, Soul Fire (names from the game)
 }
 
 -- Demonic Brand in the client's language (spell names come from the game)
@@ -31,6 +33,7 @@ end
 function A.defaultText(kind)
   local t = L[A.DEFAULT_TEXT[kind]]
   if kind == "brand" then t = string.format(t, ns.brandName()) end
+  if kind == "deci" then t = string.format(t, ns.deciName(), ns.soulFireName()) end
   return t
 end
 
@@ -64,6 +67,10 @@ local function iconFor(kind)
   if kind == "hp" then -- Health Funnel: the fix for a hurt demon
     local t = C_Spell and C_Spell.GetSpellTexture and ns.plain(C_Spell.GetSpellTexture, 755)
     return t or "Interface\\Icons\\Spell_Shadow_LifeDrain"
+  end
+  if kind == "deci" then -- Soul Fire: what to cast now
+    local t = C_Spell and C_Spell.GetSpellTexture and ns.plain(C_Spell.GetSpellTexture, 6353)
+    return t or "Interface\\Icons\\Spell_Fire_Fireball02"
   end
   local tex = C_Spell and C_Spell.GetSpellTexture and ns.plain(C_Spell.GetSpellTexture, 1293695)
   if not tex and C_Spell and C_Spell.GetSpellTexture then tex = ns.plain(C_Spell.GetSpellTexture, 5676) end

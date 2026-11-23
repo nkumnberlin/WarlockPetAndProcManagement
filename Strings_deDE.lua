@@ -15,7 +15,7 @@ ns.STRINGS.deDE = {
   ["open or close the options"] = "Optionen öffnen oder schließen",
   ["show all warnings for a few seconds"] = "alle Warnungen ein paar Sekunden zeigen",
   ["move the warnings / fix them in place"] = "Warnungen verschieben / festsetzen",
-  ["pet, pet mode, talent and running brands"] = "Begleiter, Begleitermodus, Talent und laufende Brandmale",
+  ["pet, pet mode, talents, running brands and procs"] = "Begleiter, Begleitermodus, Talente, laufende Brandmale und Procs",
   ["debug lines in chat on/off"] = "Debug-Zeilen im Chat an/aus",
   ["interface language (then /reload)"] = "Sprache der Oberfläche (danach /reload)",
   ["all settings back to default"] = "alle Einstellungen zurücksetzen",
@@ -86,7 +86,20 @@ ns.STRINGS.deDE = {
   ["%s talent"] = "Talent %s",
   ["not learned (no brand warning)"] = "nicht erlernt (keine Brandmal-Warnung)",
   ["Coming later"] = "Kommt später",
-  ["Proc management (alerts for your warlock procs) comes in a later version."] = "Proc-Verwaltung (Hinweise für deine Hexenmeister-Procs) kommt in einer späteren Version.",
+  ["More proc alerts come in later versions."] = "Weitere Proc-Hinweise kommen in späteren Versionen.",
+
+  -- 0.3.0: Decimation proc
+  ["Proc management"] = "Procs",
+  ["%s: %s now!"] = "%s: jetzt %s!",
+  ["Warn when Decimation is up"] = "Warnen, wenn Decimation aktiv ist",
+  ["Demonology talent: your Shadow Bolt or Searing Pain on an enemy below 35 % health makes your Soul Fire faster and free of Soul Shards for 10 sec. The warning shows while that is up. The addon sees it by your Soul Fire's shorter cast time, the game's glow on Soul Fire, or the buff itself where the game lets it be read."] = "Dämonologie-Talent: Dein Schattenblitz oder Sengender Schmerz auf einen Gegner unter 35 % Gesundheit macht dein Seelenfeuer 10 Sek. lang schneller und kostenlos (keine Seelensplitter). Solange das aktiv ist, steht die Warnung. Das Addon erkennt es an der kürzeren Zauberzeit deines Seelenfeuers, am Leuchten des Spiels auf Seelenfeuer oder am Buff selbst, wo das Spiel ihn lesen lässt.",
+  ["Learned the %s buff (spell %d)."] = "Den %s-Buff gelernt (Zauber %d).",
+  ["%s talent: %s"] = "Talent %s: %s",
+  ["%s not known"] = "%s nicht bekannt",
+  ["%s cast: %.1f s"] = "%s Zauberzeit: %.1f s",
+  ["buff ID %d"] = "Buff-ID %d",
+  ["buff ID not learned yet"] = "Buff-ID noch nicht gelernt",
+  ["proc up, %.0f s left"] = "Proc aktiv, noch %.0f s",
 
   -- warning pages
   ["Warn when my pet doesn't attack in a fight"] = "Warnen, wenn mein Begleiter im Kampf nicht angreift",

@@ -1,7 +1,7 @@
 -- Warlock Pet & Proc Management: core.
 -- Namespace, saved settings, helpers that never touch secret values, the event hub, the debug
 -- log and the slash commands. The features live in Alerts.lua (on-screen warnings and sounds),
--- Pet.lua (pet not attacking, Demonic Brand, low pet health) and Options.lua (options window, minimap button).
+-- Pet.lua (pet not attacking, Demonic Brand, low pet health), Procs.lua (Decimation) and Options.lua (options window, minimap button).
 --
 -- WoW Forever rules this addon follows (see AGENTS.md): no combat log, no reading of enemy auras in
 -- combat, no math or comparisons on secret values, no writes to Blizzard globals or tables.
@@ -9,7 +9,7 @@
 local ADDON_NAME, ns = ...
 local L = ns.L
 
-ns.VERSION = "0.2.0"
+ns.VERSION = "0.3.0"
 ns.TITLE = "Warlock Pet & Proc"
 ns.SAME_FRAME = 0.02 -- seconds: events in the same frame (DotWatch, DotProbe 0.7)
 
@@ -78,6 +78,8 @@ ns.DEFAULTS = {
     sound = true, soundKey = "emote", repeatSec = 0, delay = 1, charges = false, engine = true },
   hp = { on = true, size = 28, color = { 1, 0.3, 0.55 }, icon = true, pulse = true, threshold = 30,
     ooc = false, sound = true, soundKey = "clock2", repeatSec = 0 },
+  deci = { on = true, size = 30, color = { 0.55, 1, 0.2 }, icon = true, pulse = true,
+    sound = true, soundKey = "ready", repeatSec = 0 },
 }
 
 local function fill(dst, src)
@@ -100,7 +102,7 @@ function ns.resetSettings(part)
     fill(db[part], ns.DEFAULTS[part])
   else
     for k in pairs(ns.DEFAULTS) do db[k] = nil end
-    db.pos = nil
+    db.pos = nil -- db.learned (spell IDs the addon found in game) stays
     fill(db, ns.DEFAULTS)
   end
 end
@@ -192,7 +194,7 @@ local function help()
   print("  /wpm  - " .. L["open or close the options"])
   print("  /wpm test  - " .. L["show all warnings for a few seconds"])
   print("  /wpm unlock | lock  - " .. L["move the warnings / fix them in place"])
-  print("  /wpm status  - " .. L["pet, pet mode, talent and running brands"])
+  print("  /wpm status  - " .. L["pet, pet mode, talents, running brands and procs"])
   print("  /wpm debug  - " .. L["debug lines in chat on/off"])
   print("  /wpm lang <auto|en|de>  - " .. L["interface language (then /reload)"])
   print("  /wpm reset  - " .. L["all settings back to default"])
@@ -217,6 +219,7 @@ SlashCmdList.WARLOCKPETPROC = function(msg)
     ns.Alert.setLocked(true)
   elseif cmd == "status" then
     ns.Pet.status()
+    if ns.Procs then ns.Procs.status() end
   elseif cmd == "debug" then
     ns.db.debugChat = not ns.db.debugChat
     ns.say(ns.db.debugChat and L["Debug lines in chat: on."] or L["Debug lines in chat: off."])

@@ -1,8 +1,8 @@
 ## Interface: 16001
 ## Title: Warlock Pet & Proc Management
-## Notes: Warlock pet warnings: your demon is not attacking in a fight, it attacks an enemy without your Demonic Brand, or its health is low. Custom text and sound. Proc alerts will follow.
-## Notes-deDE: Hexenmeister-Begleiterwarnungen: dein Dämon greift im Kampf nicht an, greift einen Gegner ohne deine Demonic Brand an oder hat wenig Gesundheit. Eigener Text und Ton. Proc-Hinweise folgen.
-## Version: 0.2.0
+## Notes: Warlock pet warnings: your demon is not attacking in a fight, it attacks an enemy without your Demonic Brand, or its health is low. Proc alert: Decimation (Soul Fire now). Custom text and sound.
+## Notes-deDE: Hexenmeister-Begleiterwarnungen: dein Dämon greift im Kampf nicht an, greift einen Gegner ohne deine Demonic Brand an oder hat wenig Gesundheit. Proc-Hinweis: Decimation (jetzt Soul Fire). Eigener Text und Ton.
+## Version: 0.3.0
 ## X-License: MIT
 ## X-Website: https://github.com/nkumnberlin/WarlockPetAndProcManagement
 ## SavedVariables: WarlockPetAndProcManagementDB
@@ -12,4 +12,5 @@ Strings_deDE.lua
 Core.lua
 Alerts.lua
 Pet.lua
+Procs.lua
 Options.lua
