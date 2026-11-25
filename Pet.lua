@@ -7,6 +7,11 @@
 --    "Attacking" = IsPetAttackActive() (the pet's Attack is on; PET_ATTACK_START/STOP), or a pet cast
 --    in the last 3 s (the Imp's Firebolt). If IsPetAttackActive can't be read, a living enemy as the
 --    pet's target counts as attacking. ATTACK lines in the debug log show which source answered.
+--    0.3.1, Imp: its Attack can stay on while it does nothing (out of range or sight, out of mana,
+--    crowd-controlled, chasing a fleeing enemy). The Imp attacks by casting Firebolt, so with Attack on
+--    and no pet cast (finished or running) for P.STALL s it counts as not attacking. The grace starts
+--    again when Attack goes on or the pet gets a new target (travel time). Other pets: only an ATTACK
+--    debug line when they cast nothing for a while (to learn what Forever shows for melee pets).
 --
 -- 2. Demonic Brand (Forever Demonology talent, spell 1293695): your Searing Pain brands the enemy
 --    for 10 s; your pet's next attacks on it deal extra damage. When the talent is learned and your
@@ -60,14 +65,82 @@ local function petHasEnemy()
     and plain(UnitIsDead, "pettarget") ~= true
 end
 
+-- 0.3.1: the Imp (by creature family, or because it cast Firebolt since it was summoned)
+P.STALL = 3.5 -- s without a pet cast while Attack is on (Firebolt: 2 s cast, 1.5 s with the talent)
+P.FIREBOLT = 3110 -- rank 1; every rank is matched by name
+P.IMP_NAMES = { Imp = true, Wichtel = true }
+local fireboltIDs = {}
+function P.isFirebolt(id)
+  id = num(id)
+  if not id then return false end
+  local c = fireboltIDs[id]
+  if c ~= nil then return c end
+  local name = C_Spell and C_Spell.GetSpellName and str(plain(C_Spell.GetSpellName, id))
+  if not name and GetSpellInfo then name = str(plain(GetSpellInfo, id)) end
+  if not name then return false end
+  local own = C_Spell and C_Spell.GetSpellName and str(plain(C_Spell.GetSpellName, P.FIREBOLT))
+  c = (name == own) or name == "Firebolt" or name == "Feuerblitz"
+  fireboltIDs[id] = c
+  return c
+end
+function P.isImp()
+  if P.impSeen then return true end
+  local fam = str(plain(UnitCreatureFamily, "pet"))
+  return fam ~= nil and P.IMP_NAMES[fam] == true
+end
+
+-- the pet started / finished / stopped a cast
+function P.onPetCast(event, unit, _, spellID)
+  if unit ~= "pet" then return end
+  local t = ns.now()
+  P.lastPetEvent = t -- also a stopped or interrupted cast: the pet is trying
+  if event == "UNIT_SPELLCAST_START" or event == "UNIT_SPELLCAST_CHANNEL_START" then
+    P.petCasting = t
+  else
+    P.petCasting = nil
+  end
+  if event == "UNIT_SPELLCAST_SUCCEEDED" then B.lastPetCast = t end
+  if not P.impSeen and P.isFirebolt(spellID) then
+    P.impSeen = true
+    ns.dbg("ATTACK pet is an Imp (Firebolt)")
+  end
+end
+
+-- a new pet target: the pet gets its travel time again
+function P.resetAttack()
+  if P.attackOn then P.attackOn = ns.now() end
+  P.stallSaid = nil
+end
+
 -- is the pet attacking? returns true/false and which signal answered (for the debug log)
 function P.attackState(t)
   if not P.hasPet() then return false, "no pet" end
-  if B.lastPetCast and t - B.lastPetCast < 3 then return true, "pet cast" end
+  local recent = B.lastPetCast and t - B.lastPetCast < 3
   if IsPetAttackActive then
     local ok, v = pcall(IsPetAttackActive)
-    if ok and not ns.issecret(v) then return (v == true or v == 1), "attack " .. tostring(v) end
+    if ok and not ns.issecret(v) then
+      if not (v == true or v == 1) then
+        P.attackOn, P.stallSaid = nil, nil
+        if recent then return true, "pet cast" end
+        return false, "attack " .. tostring(v)
+      end
+      P.attackOn = P.attackOn or t
+      -- the last sign of life: Attack went on (or a new target), a finished cast, a cast running now
+      local last = math.max(P.attackOn, P.lastPetEvent or 0)
+      if P.petCasting and t - P.petCasting < 4 then last = t end
+      if t - last >= P.STALL then
+        if P.isImp() then
+          return false, string.format("attack on, but no Imp cast for %.1fs", t - last)
+        elseif not P.stallSaid and ns.inCombat and t - last >= 5 then
+          P.stallSaid = true
+          ns.dbg(string.format("ATTACK %s: attack on, no pet cast for %.1fs (not judged)",
+            str(plain(UnitCreatureFamily, "pet")) or "pet family unknown", t - last))
+        end
+      end
+      return true, "attack " .. tostring(v)
+    end
   end
+  if recent then return true, "pet cast" end
   return petHasEnemy(), "pet target (attack state unreadable)"
 end
 
@@ -218,7 +291,7 @@ function B.onSent(unit, destName, castGUID, spellID)
 end
 
 function B.onSucceeded(unit, castGUID, spellID)
-  if unit == "pet" then B.lastPetCast = ns.now() return end
+  if unit == "pet" then return end -- P.onPetCast
   if unit ~= "player" or not B.isSearing(spellID) or not B.talent() then return end
   castGUID = str(castGUID)
   local p = castGUID and B.pending[castGUID]
@@ -536,6 +609,10 @@ function P.start()
   started = true
   ns.on("UNIT_SPELLCAST_SENT", B.onSent)
   ns.on("UNIT_SPELLCAST_SUCCEEDED", B.onSucceeded)
+  for _, e in ipairs({ "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_CHANNEL_START", "UNIT_SPELLCAST_SUCCEEDED",
+      "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_CHANNEL_STOP", "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED" }) do
+    ns.on(e, function(...) P.onPetCast(e, ...) end)
+  end
   ns.on("UNIT_SPELLCAST_FAILED", B.onCastEnd)
   ns.on("UNIT_SPELLCAST_INTERRUPTED", B.onCastEnd)
   ns.on("UNIT_COMBAT", B.onCombat)
@@ -546,6 +623,7 @@ function P.start()
     if unit == "pet" then
       B.retoken("pettarget")
       B.since = nil -- the delay starts again for the new target
+      P.resetAttack() -- 0.3.1: travel time to the new target
       ns.Alert.engineRefresh() -- 0.2.0: the engine reads the new pet target
       P.update()
     end
@@ -568,6 +646,7 @@ function P.start()
   ns.on("UNIT_PET", function(unit)
     if unit == "player" then
       B.since = nil
+      P.impSeen, P.petCasting, P.attackOn, P.stallSaid, P.lastPetEvent = nil, nil, nil, nil, nil
       P.update()
     end
   end)

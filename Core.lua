@@ -9,7 +9,7 @@
 local ADDON_NAME, ns = ...
 local L = ns.L
 
-ns.VERSION = "0.3.0"
+ns.VERSION = "0.3.1"
 ns.TITLE = "Warlock Pet & Proc"
 ns.SAME_FRAME = 0.02 -- seconds: events in the same frame (DotWatch, DotProbe 0.7)
 

@@ -363,7 +363,7 @@ end
 
 local function buildIdlePage(pg)
   buildAlertPage(pg, "idle", "Pet not attacking", "Warn when my pet doesn't attack in a fight",
-    "In a fight, when your pet is alive but not attacking (its Attack isn't on, e.g. on Passive before you send it in, or after its target died), this warning comes up. It goes away when the pet attacks, is gone or the fight ends. Works in every pet mode.")
+    "In a fight, when your pet is alive but not attacking (its Attack isn't on, e.g. on Passive before you send it in, or after its target died; or your Imp has Attack on but casts nothing, e.g. out of range or out of mana), this warning comes up. It goes away when the pet attacks, is gone or the fight ends. Works in every pet mode.")
   makeDelay(pg, "idle", 5, "Time to send your pet in: the warning only comes up when the pet hasn't attacked for this long in a fight.")
   makePreview(pg, "idle", -336)
 end

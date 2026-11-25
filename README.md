@@ -2,10 +2,10 @@
 
 A warlock addon for **World of Warcraft: Forever**. It watches your demon and warns you on screen (with an optional sound) when something is wrong, and tells you when a proc is up.
 
-## Features (v0.3.0)
+## Features (v0.3.1)
 
 **Pet not attacking**
-- In a fight, when your pet is alive but **not attacking** – e.g. it is on Passive and you haven't sent it in yet, or its target died – a warning appears in the middle of the screen.
+- In a fight, when your pet is alive but **not attacking** – e.g. it is on Passive and you haven't sent it in yet, its target died, or your Imp has Attack on but casts nothing (out of range or sight, out of mana, crowd-controlled) – a warning appears in the middle of the screen.
 - A short grace period (default 1.5 s) gives you time to send the pet in. The warning goes away as soon as the pet attacks, is gone or the fight ends. Works in every pet mode.
 
 **Demonic Brand** (Demonology talent)
