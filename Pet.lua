@@ -12,6 +12,8 @@
 --    and no pet cast (finished or running) for P.STALL s it counts as not attacking. The grace starts
 --    again when Attack goes on or the pet gets a new target (travel time). Other pets: only an ATTACK
 --    debug line when they cast nothing for a while (to learn what Forever shows for melee pets).
+--    0.3.2, every pet: when its target dies mid-fight the game can leave Attack on; Attack on with no
+--    pet target (or a dead one) counts as not attacking.
 --
 -- 2. Demonic Brand (Forever Demonology talent, spell 1293695): your Searing Pain brands the enemy
 --    for 10 s; your pet's next attacks on it deal extra damage. When the talent is learned and your
@@ -63,6 +65,17 @@ local B = { list = {}, pending = {}, recent = {} } -- Demonic Brand, section 2
 local function petHasEnemy()
   return plain(UnitExists, "pettarget") == true and plain(UnitCanAttack, "player", "pettarget") ~= false
     and plain(UnitIsDead, "pettarget") ~= true
+end
+
+-- 0.3.2: what the pet's target is: "enemy", "none", "dead" or "unknown" (the game hides the answer).
+-- Only a plain "none" or "dead" counts against the pet; anything hidden gives it the benefit of the doubt.
+function P.petTarget()
+  local ok, ex = pcall(UnitExists, "pettarget")
+  if not ok or ns.issecret(ex) then return "unknown" end
+  if not ex then return "none" end
+  local okD, dead = pcall(UnitIsDead, "pettarget")
+  if okD and not ns.issecret(dead) and dead then return "dead" end
+  return "enemy"
 end
 
 -- 0.3.1: the Imp (by creature family, or because it cast Firebolt since it was summoned)
@@ -125,6 +138,13 @@ function P.attackState(t)
         return false, "attack " .. tostring(v)
       end
       P.attackOn = P.attackOn or t
+      -- 0.3.2: the target died (or is gone) and the game leaves Attack on (Nico's log, 2026-11-25:
+      -- Attack stayed on up to 48 s over several pet targets while the Succubus stood idle)
+      local tgt = P.petTarget()
+      if tgt == "none" or tgt == "dead" then
+        if recent then return true, "pet cast" end
+        return false, "attack on, but pet target " .. tgt
+      end
       -- the last sign of life: Attack went on (or a new target), a finished cast, a cast running now
       local last = math.max(P.attackOn, P.lastPetEvent or 0)
       if P.petCasting and t - P.petCasting < 4 then last = t end
@@ -622,6 +642,7 @@ function P.start()
   ns.on("UNIT_TARGET", function(unit)
     if unit == "pet" then
       B.retoken("pettarget")
+      ns.dbg("ATTACK pet target changed: " .. P.petTarget())
       B.since = nil -- the delay starts again for the new target
       P.resetAttack() -- 0.3.1: travel time to the new target
       ns.Alert.engineRefresh() -- 0.2.0: the engine reads the new pet target

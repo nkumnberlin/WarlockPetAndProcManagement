@@ -2,7 +2,7 @@
 
 A warlock addon for **World of Warcraft: Forever**. It watches your demon and warns you on screen (with an optional sound) when something is wrong, and tells you when a proc is up.
 
-## Features (v0.3.1)
+## Features (v0.3.2)
 
 **Pet not attacking**
 - In a fight, when your pet is alive but **not attacking** – e.g. it is on Passive and you haven't sent it in yet, its target died, or your Imp has Attack on but casts nothing (out of range or sight, out of mana, crowd-controlled) – a warning appears in the middle of the screen.
